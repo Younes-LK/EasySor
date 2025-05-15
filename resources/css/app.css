@@ -1,0 +1,25 @@
+/* Tailwind Customizations */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* English font from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Figtree&display=swap");
+
+/* Self-hosted Vazirmatn for Persian */
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2");
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* English: Figtree by default */
+body {
+    font-family: "Figtree", sans-serif;
+}
+
+/* Persian: use Vazirmatn when RTL */
+[dir="rtl"] {
+    font-family: "Vazirmatn", Tahoma, sans-serif;
+}
