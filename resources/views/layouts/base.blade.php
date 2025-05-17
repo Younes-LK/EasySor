@@ -15,6 +15,10 @@
 
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Preload custom font (Vazirmatn) for faster loading -->
+    <link rel="preload" href="{{ asset('fonts/Vazirmatn-Regular.woff2') }}" as="font" type="font/woff2"
+        crossorigin="anonymous">
 </head>
 
 @yield('sidebar')
