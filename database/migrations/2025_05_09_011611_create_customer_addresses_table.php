@@ -14,7 +14,7 @@ return new class () extends Migration {
             $table->id();
             $table->foreignId('customer_id')->constrained('customers');
             $table->text('address');
-            $table->string('label');
+            $table->string('label')->nullable();
             $table->boolean('is_default')->default(false);
             $table->timestamps();
         });

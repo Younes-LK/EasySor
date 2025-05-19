@@ -51,9 +51,8 @@ Route::middleware('auth')->group(function () {
         return view('dashboard');
     })->name('dashboard');
 
-    Route::get('/customers', function () {
-        return view('customers');
-    })->name('customers');
+
+    Route::resource('customers', CustomerController::class);
 
     Route::get('/maintenances', function () {
         return view('maintenances');
@@ -63,6 +62,8 @@ Route::middleware('auth')->group(function () {
         return view('repairs');
     })->name('repairs');
 });
+
+
 
 
 
