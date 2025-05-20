@@ -131,6 +131,9 @@
                     </option>
                 </select>
                 <button class="px-3 py-1 bg-indigo-500 text-white rounded">اعمال</button>
+                @if (request('search'))
+                    <a href="{{ route('customers.index') }}" class="text-red-600 hover:underline px-3">پاک کردن</a>
+                @endif
             </form>
         </div>
 
@@ -335,6 +338,17 @@
                     });
                 }
             });
+
+            addressesContainer.addEventListener('change', e => {
+                if (e.target.name.includes('is_default')) {
+                    // Uncheck all other checkboxes
+                    addressesContainer.querySelectorAll('input[type="checkbox"][name$="[is_default]"]')
+                        .forEach(cb => {
+                            if (cb !== e.target) cb.checked = false;
+                        });
+                }
+            });
+
 
 
         });

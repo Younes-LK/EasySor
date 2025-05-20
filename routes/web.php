@@ -38,10 +38,7 @@ Route::middleware([IsAdmin::class])->group(function () {
         return view('contracts');
     })->name('contracts');
 
-    Route::get('/equipments', function () {
-        return view('equipments');
-    })->name('equipments');
-
+    Route::resource('equipments', EquipmentController::class);
 
 });
 
