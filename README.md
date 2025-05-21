@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="EasySor Logo" width="200"/>
+  <img src="easysor.png" alt="EasySor Logo" width="200"/>
 </p>
 
 # EasySor 🛠️
