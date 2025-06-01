@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\EquipmentController;
+use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\IsAdmin;
 
@@ -51,9 +52,7 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('customers', CustomerController::class);
 
-    Route::get('/maintenances', function () {
-        return view('maintenances');
-    })->name('maintenances');
+    Route::resource('maintenances', MaintenanceController::class);
 
     Route::resource('repairs', RepairController::class);
 });
