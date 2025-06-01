@@ -55,9 +55,7 @@ Route::middleware('auth')->group(function () {
         return view('maintenances');
     })->name('maintenances');
 
-    Route::get('/repairs', function () {
-        return view('repairs');
-    })->name('repairs');
+    Route::resource('repairs', RepairController::class);
 });
 
 

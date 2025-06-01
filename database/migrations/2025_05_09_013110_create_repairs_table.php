@@ -15,7 +15,7 @@ return new class () extends Migration {
             $table->foreignId('customer_id')->constrained('customers');
             $table->foreignId('customer_address_id')->constrained('customer_addresses');
             $table->string('title');
-            $table->text('description');
+            $table->text('description')->nullable();
             $table->integer('cost');
             $table->foreignId('assigned_to')->constrained('users');
             $table->date('performed_date');

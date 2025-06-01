@@ -13,6 +13,7 @@ return new class () extends Migration {
         Schema::create('repair_payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('repair_id')->constrained('repairs')->onDelete('cascade');
+            $table->string('title');
             $table->integer('amount');
             $table->timestamp('paid_at');
             $table->text('note')->nullable();

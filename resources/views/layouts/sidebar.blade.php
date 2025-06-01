@@ -36,7 +36,7 @@
             <img src="{{ asset('assets/images/icons/services.ico') }}" alt="Icon" class="w-5 h-5">
             سرویس‌ها
         </a>
-        <a href="{{ route('repairs') }}"
+        <a href="{{ route('repairs.index') }}"
             class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('repairs.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
             <img src="{{ asset('assets/images/icons/repairs.ico') }}" alt="Icon" class="w-5 h-5">
             تعمیرات
@@ -86,7 +86,7 @@
             <span class="truncate">سرویس‌ها</span>
         </a>
 
-        <a href="{{ route('repairs') }}"
+        <a href="{{ route('repairs.index') }}"
             class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('repairs.*') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
             <img src="{{ asset('assets/images/icons/repairs.ico') }}" alt="Icon" class="w-6 h-6 mb-1">
             <span class="truncate">تعمیرات</span>
