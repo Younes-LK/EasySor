@@ -14,8 +14,8 @@
                 <img src="{{ asset('assets/images/icons/users.ico') }}" alt="Icon" class="w-5 h-5">
                 کاربران
             </a>
-            <a href="{{ route('contracts') }}"
-                class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('contracts') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
+            <a href="{{ route('contracts.index') }}"
+                class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('contracts.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
                 <img src="{{ asset('assets/images/icons/contracts.ico') }}" alt="Icon" class="w-5 h-5">
                 قراردادها
             </a>
@@ -32,12 +32,12 @@
             مشتریان
         </a>
         <a href="{{ route('maintenances') }}"
-            class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('maintenances') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
+            class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('maintenances.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
             <img src="{{ asset('assets/images/icons/services.ico') }}" alt="Icon" class="w-5 h-5">
             سرویس‌ها
         </a>
         <a href="{{ route('repairs') }}"
-            class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('repairs') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
+            class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('repairs.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
             <img src="{{ asset('assets/images/icons/repairs.ico') }}" alt="Icon" class="w-5 h-5">
             تعمیرات
         </a>
@@ -61,8 +61,8 @@
                 <span class="truncate">کاربران</span>
             </a>
 
-            <a href="{{ route('contracts') }}"
-                class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('contracts') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
+            <a href="{{ route('contracts.index') }}"
+                class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('contracts.*') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
                 <img src="{{ asset('assets/images/icons/contracts.ico') }}" alt="Icon" class="w-6 h-6 mb-1">
                 <span class="truncate">قراردادها</span>
             </a>
@@ -81,13 +81,13 @@
         </a>
 
         <a href="{{ route('maintenances') }}"
-            class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('maintenances') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
+            class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('maintenances.*') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
             <img src="{{ asset('assets/images/icons/services.ico') }}" alt="Icon" class="w-6 h-6 mb-1">
             <span class="truncate">سرویس‌ها</span>
         </a>
 
         <a href="{{ route('repairs') }}"
-            class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('repairs') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
+            class="flex flex-col items-center justify-center w-16 text-center text-xs font-semibold text-gray-700 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 {{ Route::is('repairs.*') ? 'bg-gray-400 dark:bg-gray-950 rounded-md px-2 py-1' : '' }}">
             <img src="{{ asset('assets/images/icons/repairs.ico') }}" alt="Icon" class="w-6 h-6 mb-1">
             <span class="truncate">تعمیرات</span>
         </a>
