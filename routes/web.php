@@ -8,6 +8,7 @@ use App\Http\Controllers\RepairController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\HomeController;
 use App\Http\Middleware\IsAdmin;
 
 /*Route::get('/welcome', function () {
@@ -15,9 +16,8 @@ use App\Http\Middleware\IsAdmin;
 })->name('welcome');*/
 
 
-Route::get('/', function () {
-    return view('home');
-})->name('home');
+Route::get('/', [HomeController::class, 'index'])->name('home');
+
 
 
 
@@ -52,6 +52,12 @@ Route::middleware('auth')->group(function () {
     Route::resource('maintenances', MaintenanceController::class);
 
     Route::resource('repairs', RepairController::class);
+
+    Route::post('/maintenance/{maintenance}/done', [HomeController::class, 'markMaintenanceDone'])
+       ->name('home.maintenance.done');
+
+    Route::post('/contract/{contract}/done', [HomeController::class, 'markContractDone'])
+        ->name('home.contract.done');
 });
 
 
