@@ -31,10 +31,7 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware([IsAdmin::class])->group(function () {
     // روت‌های مخصوص ادمین‌ها
-    Route::get('/users', function () {
-        return view('users');
-    })->name('users');
-
+    Route::resource('users', UserController::class);
 
     Route::resource('contracts', ContractController::class);
 

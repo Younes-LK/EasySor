@@ -18,13 +18,14 @@
                     </button>
 
 
-
-                    @if (Auth::user()->role === 'admin')
-                        <a href="{{ route('register') }}"
-                            class="inline-flex items-center justify-center rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">
-                            ایجاد کاربر
-                        </a>
-                    @endif
+                    <!-- DELETED BUTTON
+                        @if (Auth::user()->role === 'admin')
+    <a href="{{ route('register') }}"
+                                class="inline-flex items-center justify-center rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">
+                                ایجاد کاربر
+                            </a>
+    @endif
+                        -->
                 @else
                     <a href="{{ route('login') }}"
                         class="inline-flex items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600">

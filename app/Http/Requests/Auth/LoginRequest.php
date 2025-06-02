@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use App\Models\User; // Essential: Import the User model
 
 class LoginRequest extends FormRequest
 {
@@ -46,6 +47,20 @@ class LoginRequest extends FormRequest
 
             throw ValidationException::withMessages([
                 'phone' => trans('auth.failed'),
+            ]);
+        }
+
+        $user = Auth::user();
+
+        // Check if the authenticated user is active
+        if ($user instanceof User && !$user->is_active) {
+            Auth::logout();
+            $this->session()->invalidate();
+            $this->session()->regenerateToken();
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'phone' => __('حساب کاربری شما غیرفعال است. لطفا با مدیر سیستم تماس بگیرید.'),
             ]);
         }
 
