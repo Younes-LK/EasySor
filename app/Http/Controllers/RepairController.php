@@ -11,20 +11,24 @@ use App\Models\RepairPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log; // Optional: For logging errors
+use Illuminate\Support\Facades\Log;
 use Morilog\Jalali\Jalalian;
-use Illuminate\Support\Facades\Route; // Added for Route::currentRouteName()
+use Illuminate\Support\Facades\Auth; // Import Auth facade
+use Illuminate\Support\Facades\Gate; // Import Gate facade (optional, for more complex policies)
+use Illuminate\Support\Facades\Route;
 
 class RepairController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $query = Repair::with(['customer', 'address', 'user']); // 'user' is the relation for assigned_to
 
-        // Search logic
+        // Authorization: Filter for staff
+        if (Auth::check() && Auth::user()->isStaff()) {
+            $query->where('assigned_to', Auth::id());
+        }
+        // Admins will see all by default
+
         if ($request->filled('search')) {
             $searchTerm = $request->search;
             $query->where(function ($q) use ($searchTerm) {
@@ -36,11 +40,9 @@ class RepairController extends Controller
             });
         }
 
-        // Sort logic
-        $sortField = $request->input('sort_field', 'performed_date'); // Default sort
+        $sortField = $request->input('sort_field', 'performed_date');
         $sortDirection = $request->input('sort_direction', 'desc');
         $validSortFields = ['performed_date', 'cost', 'created_at'];
-
         if (!in_array($sortField, $validSortFields)) {
             $sortField = 'performed_date';
         }
@@ -51,7 +53,6 @@ class RepairController extends Controller
 
         $repairsList = $query->paginate(10);
 
-        // Data for the form if it's displayed on the index page
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $users = User::whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name']);
         $customersWithAddresses = Customer::with('addresses:id,customer_id,label,address,is_default')->get(['id', 'name']);
@@ -63,7 +64,7 @@ class RepairController extends Controller
             'customers' => $customers,
             'users' => $users,
             'editMode' => false,
-            'repair' => new Repair(), // For the create form part of the page
+            'repair' => new Repair(),
             'customersWithAddresses' => $customersWithAddresses,
             'selectedCustomerAddresses' => collect(),
             'availableEquipments' => $availableEquipments,
@@ -71,18 +72,22 @@ class RepairController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
+        // Authorization: Only admins can create
+        if (Auth::check() && !Auth::user()->isAdmin()) {
+            return redirect()->route('repairs.index')->withErrors(['general' => 'شما اجازه ایجاد تعمیر جدید را ندارید.']);
+        }
+
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $users = User::whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name']);
         $customersWithAddresses = Customer::with('addresses:id,customer_id,label,address,is_default')->get(['id', 'name']);
         $availableEquipments = Equipment::orderBy('name')->get();
         $currentJalaliDateTime = Jalalian::now()->format('Y/m/d H:i');
+        $currentJalaliDate = Jalalian::now()->format('Y/m/d');
 
-        return view('repairs', [ // Assuming repairs.blade.php handles create form
+
+        return view('repairs', [
             'editMode' => false,
             'repair' => new Repair(),
             'customers' => $customers,
@@ -91,15 +96,19 @@ class RepairController extends Controller
             'selectedCustomerAddresses' => collect(),
             'availableEquipments' => $availableEquipments,
             'currentJalaliDateTime' => $currentJalaliDateTime,
-            'repairsList' => collect(), // Empty list for create page context
+            'currentJalaliDate' => $currentJalaliDate,
+            'repairsList' => collect(),
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
+        // Authorization: Only admins can store new repairs
+        if (Auth::check() && !Auth::user()->isAdmin()) {
+            // Or use abort(403, 'Unauthorized action.');
+            return redirect()->route('repairs.index')->withErrors(['general' => 'شما اجازه ثبت تعمیر جدید را ندارید.']);
+        }
+
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|exists:customers,id',
             'customer_address_id' => 'required|exists:customer_addresses,id,customer_id,' . $request->customer_id,
@@ -107,7 +116,7 @@ class RepairController extends Controller
             'description' => 'nullable|string',
             'cost' => 'required|numeric|min:0',
             'assigned_to' => 'nullable|exists:users,id',
-            'performed_date' => 'required|string', // Will be parsed from Jalali
+            'performed_date' => 'required|string',
             'sms_sent' => 'nullable|boolean',
 
             'new_equipments.*.equipment_id' => 'nullable|required_with:new_equipments.*.quantity|exists:equipments,id',
@@ -117,7 +126,7 @@ class RepairController extends Controller
 
             'new_payments.*.title' => 'nullable|required_with:new_payments.*.amount|string|max:255',
             'new_payments.*.amount' => 'nullable|required_with:new_payments.*.title|numeric|min:0',
-            'new_payments.*.paid_at' => 'nullable|required_with:new_payments.*.title|string', // Parsed from Jalali
+            'new_payments.*.paid_at' => 'nullable|required_with:new_payments.*.title|string',
             'new_payments.*.note' => 'nullable|string',
         ]);
 
@@ -134,12 +143,10 @@ class RepairController extends Controller
         $validatedRepairData['sms_sent'] = $request->has('sms_sent');
         $validatedRepairData['performed_date'] = Jalalian::fromFormat('Y/m/d', $request->performed_date)->toCarbon();
 
-
         DB::beginTransaction();
         try {
             $repair = Repair::create($validatedRepairData);
 
-            // Handle new equipments
             if ($request->has('new_equipments')) {
                 foreach ($request->input('new_equipments', []) as $equipmentData) {
                     if (!empty($equipmentData['equipment_id']) && !empty($equipmentData['quantity'])) {
@@ -159,7 +166,6 @@ class RepairController extends Controller
                 }
             }
 
-            // Handle new payments
             if ($request->has('new_payments')) {
                 foreach ($request->input('new_payments', []) as $paymentData) {
                     if (!empty($paymentData['title']) && isset($paymentData['amount'])) {
@@ -182,36 +188,39 @@ class RepairController extends Controller
         }
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit($id)
     {
         $repair = Repair::with([
             'customer.addresses',
-            'user', // Relation for assigned_to
+            'user',
             'equipments.equipment',
             'payments'
         ])->findOrFail($id);
+
+        // Authorization: Staff can only edit their own repairs
+        if (Auth::check() && Auth::user()->isStaff() && $repair->assigned_to !== Auth::id()) {
+            return redirect()->route('repairs.index')->withErrors(['general' => 'شما اجازه ویرایش این تعمیر را ندارید.']);
+        }
 
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $users = User::whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name']);
         $customersWithAddresses = Customer::with('addresses:id,customer_id,label,address,is_default')->get(['id', 'name']);
         $availableEquipments = Equipment::orderBy('name')->get();
         $currentJalaliDateTime = Jalalian::now()->format('Y/m/d H:i');
+        $currentJalaliDate = Jalalian::now()->format('Y/m/d');
 
         $selectedCustomerAddresses = $repair->customer ? $repair->customer->addresses : collect();
 
-        // For the list part of the blade, if you show it on the edit page
-        $repairsList = collect(); // Typically, list is not needed on a dedicated edit page
-        // If repairs.blade.php is also the index, then fetch the list like in index()
-        if (Route::currentRouteName() == 'repairs.index' || !view()->exists('repairs.edit')) { // Heuristic
+        $repairsList = collect();
+        if (Route::currentRouteName() == 'repairs.index' || !view()->exists('repairs.edit')) {
             $query = Repair::with(['customer', 'address', 'user']);
+            if (Auth::check() && Auth::user()->isStaff()) { // Also filter list in background if shown on edit page
+                $query->where('assigned_to', Auth::id());
+            }
             $repairsList = $query->orderBy('performed_date', 'desc')->paginate(10);
         }
 
-
-        return view('repairs', [ // Assuming repairs.blade.php handles edit form
+        return view('repairs', [
             'editMode' => true,
             'repair' => $repair,
             'customers' => $customers,
@@ -220,25 +229,28 @@ class RepairController extends Controller
             'selectedCustomerAddresses' => $selectedCustomerAddresses,
             'availableEquipments' => $availableEquipments,
             'currentJalaliDateTime' => $currentJalaliDateTime,
+            'currentJalaliDate' => $currentJalaliDate,
             'repairsList' => $repairsList,
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, $id)
     {
         $repair = Repair::findOrFail($id);
 
+        // Authorization: Staff can only update their own repairs
+        if (Auth::check() && Auth::user()->isStaff() && $repair->assigned_to !== Auth::id()) {
+            return redirect()->route('repairs.index')->withErrors(['general' => 'شما اجازه بروزرسانی این تعمیر را ندارید.']);
+        }
+        // Admins can update any
+
         $validator = Validator::make($request->all(), [
-            // customer_id is disabled on edit, so not validated here for change
             'customer_address_id' => 'required|exists:customer_addresses,id,customer_id,' . $repair->customer_id,
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'cost' => 'required|numeric|min:0',
             'assigned_to' => 'nullable|exists:users,id',
-            'performed_date' => 'required|string', // Parsed from Jalali
+            'performed_date' => 'required|string',
             'sms_sent' => 'nullable|boolean',
 
             'equipments.*.id' => 'required_with:equipments.*.quantity|exists:repair_equipments,id,repair_id,'.$id,
@@ -255,13 +267,13 @@ class RepairController extends Controller
             'payments.*.id' => 'required_with:payments.*.title|exists:repair_payments,id,repair_id,'.$id,
             'payments.*.title' => 'required_with:payments.*.id|string|max:255',
             'payments.*.amount' => 'required_with:payments.*.id|numeric|min:0',
-            'payments.*.paid_at' => 'required_with:payments.*.id|string', // Parsed from Jalali
+            'payments.*.paid_at' => 'required_with:payments.*.id|string',
             'payments.*.note' => 'nullable|string',
             'payments.*._remove' => 'nullable|boolean',
 
             'new_payments.*.title' => 'nullable|required_with:new_payments.*.amount|string|max:255',
             'new_payments.*.amount' => 'nullable|required_with:new_payments.*.title|numeric|min:0',
-            'new_payments.*.paid_at' => 'nullable|required_with:new_payments.*.title|string', // Parsed from Jalali
+            'new_payments.*.paid_at' => 'nullable|required_with:new_payments.*.title|string',
             'new_payments.*.note' => 'nullable|string',
         ]);
 
@@ -277,17 +289,23 @@ class RepairController extends Controller
                 'customer_address_id', 'title', 'description',
                 'cost', 'assigned_to'
             ]);
+            // If user is staff, they cannot change the assigned_to field to someone else
+            if (Auth::user()->isStaff() && isset($validatedRepairData['assigned_to']) && $validatedRepairData['assigned_to'] != Auth::id()) {
+                $validatedRepairData['assigned_to'] = Auth::id(); // Force assign to self or remove this field from update for staff
+            }
+
+
             $validatedRepairData['sms_sent'] = $request->has('sms_sent');
             $validatedRepairData['performed_date'] = Jalalian::fromFormat('Y/m/d', $request->performed_date)->toCarbon();
 
             $repair->update($validatedRepairData);
 
-            // Handle Existing Equipments
+            // Handle Existing Equipments (Same logic as before)
             if ($request->has('equipments')) {
                 foreach ($request->input('equipments') as $eqData) {
                     if (empty($eqData['id'])) {
                         continue;
-                    } // Should not happen with validation
+                    }
                     $repairEquipment = RepairEquipment::find($eqData['id']);
                     if (!$repairEquipment || $repairEquipment->repair_id != $repair->id) {
                         continue;
@@ -304,7 +322,6 @@ class RepairController extends Controller
                     } else {
                         $newQuantity = (int)$eqData['quantity'];
                         $quantityChange = $newQuantity - $originalQuantity;
-
                         if ($mainEquipment) {
                             if ($quantityChange > 0 && $mainEquipment->stock_quantity < $quantityChange) {
                                 throw new \Exception("موجودی انبار برای تجهیز {$mainEquipment->name} کافی نیست.");
@@ -320,7 +337,7 @@ class RepairController extends Controller
                 }
             }
 
-            // Handle New Equipments
+            // Handle New Equipments (Same logic as before)
             if ($request->has('new_equipments')) {
                 foreach ($request->input('new_equipments', []) as $equipmentData) {
                     if (!empty($equipmentData['equipment_id']) && !empty($equipmentData['quantity'])) {
@@ -340,7 +357,7 @@ class RepairController extends Controller
                 }
             }
 
-            // Handle Existing Payments
+            // Handle Existing Payments (Same logic as before)
             if ($request->has('payments')) {
                 foreach ($request->input('payments') as $paymentData) {
                     if (empty($paymentData['id'])) {
@@ -363,7 +380,7 @@ class RepairController extends Controller
                     }
                 }
             }
-            // Handle New Payments
+            // Handle New Payments (Same logic as before)
             if ($request->has('new_payments')) {
                 foreach ($request->input('new_payments', []) as $paymentData) {
                     if (!empty($paymentData['title']) && isset($paymentData['amount'])) {
@@ -386,24 +403,26 @@ class RepairController extends Controller
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
+        $repair = Repair::with('equipments')->findOrFail($id);
+
+        // Authorization: Only admins can delete, or staff their own (adjust as needed)
+        if (Auth::check() && Auth::user()->isStaff() && $repair->assigned_to !== Auth::id()) {
+            // If you want staff to not delete at all, remove the $repair->assigned_to !== Auth::id() part
+            // and just check if !Auth::user()->isAdmin()
+            return redirect()->route('repairs.index')->withErrors(['general' => 'شما اجازه حذف این تعمیر را ندارید.']);
+        }
+        // Admins can delete any
+
         DB::beginTransaction();
         try {
-            $repair = Repair::with('equipments')->findOrFail($id);
-
-            // Restore stock for equipments linked to this repair
             foreach ($repair->equipments as $repairEquipment) {
                 $equipment = Equipment::find($repairEquipment->equipment_id);
                 if ($equipment) {
                     $equipment->increment('stock_quantity', $repairEquipment->quantity);
                 }
             }
-            // Related repair_equipments and repair_payments will be deleted by cascading if set up in migrations,
-            // or delete them manually here if not.
             $repair->equipments()->delete();
             $repair->payments()->delete();
             $repair->delete();

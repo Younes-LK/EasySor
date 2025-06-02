@@ -8,20 +8,42 @@
     {{-- Helper for Str::words --}}
     @php
         use Illuminate\Support\Str;
-        // Ensure $repair is defined, even if it's a new instance for create form
-        $repair = $repair ?? new \App\Models\Repair();
-        // Ensure $editMode is defined
-        $editMode = $editMode ?? false;
+        $repair = $repair ?? new \App\Models\Repair(); // Ensure $repair is defined
+        $editMode = $editMode ?? false; // Ensure $editMode is defined
+
+        // Determine if the current user can create repairs (only admins)
+        $canCreateRepairs = Auth::check() && Auth::user()->isAdmin();
+
+        // Determine if the current user can edit *this specific* repair
+        $canEditThisRepair =
+            Auth::check() &&
+            (Auth::user()->isAdmin() ||
+                ($editMode &&
+                    Auth::user()->isStaff() &&
+                    isset($repair->assigned_to) &&
+                    $repair->assigned_to == Auth::id()));
+
+        // Determine if the form section for adding/editing should be shown
+        // Show for create route if admin, or if editing (and allowed), or if admin on index page (for inline create form)
+        $showForm =
+            (Route::currentRouteName() === 'repairs.create' && $canCreateRepairs) ||
+            ($editMode && $canEditThisRepair) ||
+            (Auth::check() && Auth::user()->isAdmin() && Route::currentRouteName() === 'repairs.index' && !$editMode);
     @endphp
 
     <div class="container mx-auto px-4 py-6">
         <h2 class="text-xl font-bold mb-4 dark:text-white">
-            @if (Route::currentRouteName() === 'repairs.create')
+            @if (Route::currentRouteName() === 'repairs.create' && $canCreateRepairs)
                 ایجاد تعمیر جدید
-            @elseif($editMode)
+            @elseif($editMode && $canEditThisRepair)
                 ویرایش تعمیر: {{ $repair->title ?? '' }} (مشتری: {{ $repair->customer->name ?? 'N/A' }})
+            @elseif($editMode && !$canEditThisRepair)
+                مشاهده تعمیر (فقط خواندنی)
             @else
                 مدیریت تعمیرات
+                @if (Auth::check() && Auth::user()->isStaff())
+                    (فقط موارد ارجاع شده به شما)
+                @endif
             @endif
         </h2>
 
@@ -42,14 +64,11 @@
         @endif
 
         <script>
-            // Make current Jalali date available to JS, ensure $currentJalaliDateTime is passed from controller
             const currentJalaliDateTimeForJS_Repairs = @json($currentJalaliDateTime ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d H:i'));
+            const currentJalaliDateForJS_Repairs = @json($currentJalaliDate ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d')); // For performed_date
         </script>
 
-        {{-- Form is shown for create route, edit route, or index route when not editing --}}
-        @if (Route::currentRouteName() === 'repairs.create' ||
-                $editMode ||
-                (Route::currentRouteName() === 'repairs.index' && !$editMode))
+        @if ($showForm)
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6">
                 <form method="POST" action="{{ $editMode ? route('repairs.update', $repair->id) : route('repairs.store') }}"
                     id="repair-form" novalidate>
@@ -68,7 +87,8 @@
                             <label class="block text-sm font-medium dark:text-white" for="repair_customer_id">مشتری</label>
                             <select id="repair_customer_id" name="customer_id"
                                 class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                {{ $editMode && isset($repair) && $repair->customer_id ? 'disabled' : '' }}>
+                                {{-- Staff cannot change customer on edit; Admin can change if not editMode or if it's new --}}
+                                {{ ($editMode && $repair->customer_id && Auth::user()->isStaff()) || ($editMode && !Auth::user()->isAdmin()) ? 'disabled' : '' }}>
                                 <option value="">انتخاب کنید</option>
                                 @foreach ($customers ?? [] as $customerOption)
                                     <option value="{{ $customerOption->id }}"
@@ -77,10 +97,11 @@
                                     </option>
                                 @endforeach
                             </select>
-                            @if ($editMode && isset($repair) && $repair->customer_id)
+                            {{-- If disabled, submit the value via hidden input --}}
+                            @if (
+                                ($editMode && $repair->customer_id && Auth::user()->isStaff()) ||
+                                    ($editMode && !Auth::user()->isAdmin() && $repair->customer_id))
                                 <input type="hidden" name="customer_id" value="{{ $repair->customer_id }}">
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">مشتری برای تعمیرات ثبت شده قابل
-                                    تغییر نیست.</p>
                             @endif
                             @error('customer_id')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
@@ -92,7 +113,8 @@
                             <label class="block text-sm font-medium dark:text-white" for="repair_customer_address_id">آدرس
                                 مشتری</label>
                             <select id="repair_customer_address_id" name="customer_address_id"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() && !$canEditThisRepair ? 'disabled' : '' }}>
                                 <option value="">ابتدا مشتری را انتخاب کنید</option>
                                 @php
                                     $currentRepairCustomerId = old('customer_id', $repair->customer_id ?? null);
@@ -118,6 +140,10 @@
                                     }
                                 @endphp
                             </select>
+                            @if ($editMode && Auth::user()->isStaff() && !$canEditThisRepair && $repair->customer_address_id)
+                                <input type="hidden" name="customer_address_id"
+                                    value="{{ $repair->customer_address_id }}">
+                            @endif
                             @error('customer_address_id')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -128,7 +154,8 @@
                             <label class="block text-sm font-medium dark:text-white" for="repair_title">عنوان تعمیر</label>
                             <input type="text" id="repair_title" name="title"
                                 value="{{ old('title', $repair->title ?? '') }}"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() && !$canEditThisRepair ? 'readonly' : '' }}>
                             @error('title')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -136,8 +163,7 @@
 
                         {{-- Cost --}}
                         <div>
-                            <label class="block text-sm font-medium dark:text-white" for="repair_cost">هزینه تخمینی
-                                (تومان)</label>
+                            <label class="block text-sm font-medium dark:text-white" for="repair_cost">هزینه (تومان)</label>
                             <input type="number" id="repair_cost" name="cost"
                                 value="{{ old('cost', $repair->cost ?? '0') }}" min="0"
                                 class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
@@ -151,7 +177,7 @@
                             <label class="block text-sm font-medium dark:text-white" for="repair_performed_date">تاریخ
                                 انجام</label>
                             <input type="text" id="repair_performed_date" name="performed_date"
-                                value="{{ old('performed_date', $repair->performed_date ? ($repair->performed_date instanceof \Carbon\Carbon ? \Morilog\Jalali\Jalalian::fromCarbon($repair->performed_date)->format('Y/m/d') : $repair->performed_date) : \Morilog\Jalali\Jalalian::now()->format('Y/m/d')) }}"
+                                value="{{ old('performed_date', $repair->performed_date ? $repair->formatted_performed_date : $currentJalaliDate ?? '') }}"
                                 placeholder="مثلا: 1403/01/15"
                                 class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 persian-date-picker">
                             @error('performed_date')
@@ -164,15 +190,20 @@
                             <label class="block text-sm font-medium dark:text-white" for="repair_assigned_to">تکنسین
                                 مسئول</label>
                             <select id="repair_assigned_to" name="assigned_to"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() ? 'disabled' : '' }}>
                                 <option value="">انتخاب کنید</option>
                                 @foreach ($users ?? [] as $user)
                                     <option value="{{ $user->id }}"
-                                        {{ old('assigned_to', $repair->assigned_to ?? '') == $user->id ? 'selected' : '' }}>
+                                        {{ old('assigned_to', $repair->assigned_to ?? Auth::id()) == $user->id ? 'selected' : '' }}>
+                                        {{-- Staff defaults to self if creating (though staff create is blocked) --}}
                                         {{ $user->name }}
                                     </option>
                                 @endforeach
                             </select>
+                            @if ($editMode && Auth::user()->isStaff() && $repair->assigned_to)
+                                <input type="hidden" name="assigned_to" value="{{ $repair->assigned_to }}">
+                            @endif
                             @error('assigned_to')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -221,36 +252,43 @@
                                                 <input type="number" name="equipments[{{ $index }}][quantity]"
                                                     value="{{ old("equipments.{$index}.quantity", $repairEquipment->quantity) }}"
                                                     min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">قیمت واحد (تومان)</label>
                                                 <input type="number" name="equipments[{{ $index }}][unit_price]"
                                                     value="{{ old("equipments.{$index}.unit_price", $repairEquipment->unit_price) }}"
                                                     min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                             <div class="md:col-span-2">
                                                 <label class="block text-xs dark:text-gray-300">یادداشت</label>
                                                 <input type="text" name="equipments[{{ $index }}][notes]"
                                                     value="{{ old("equipments.{$index}.notes", $repairEquipment->notes) }}"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                         </div>
-                                        <label class="flex items-center mt-2 text-sm">
-                                            <input type="checkbox" name="equipments[{{ $index }}][_remove]"
-                                                value="1"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
-                                            <span class="ms-2 text-red-600 dark:text-red-400">حذف این تجهیز</span>
-                                        </label>
+                                        @if ($canEditThisRepair || Auth::user()->isAdmin())
+                                            <label class="flex items-center mt-2 text-sm">
+                                                <input type="checkbox" name="equipments[{{ $index }}][_remove]"
+                                                    value="1"
+                                                    class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
+                                                <span class="ms-2 text-red-600 dark:text-red-400">حذف این تجهیز</span>
+                                            </label>
+                                        @endif
                                     </div>
                                 @endforeach
                             @endif
                         </div>
                         <div id="new-repair-equipments-placeholder"></div>
-                        <button type="button" id="add-repair-equipment-btn"
-                            class="mt-2 text-sm px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-md">+ افزودن
-                            تجهیز جدید</button>
+                        @if (Auth::user()->isAdmin() || $canEditThisRepair)
+                            <button type="button" id="add-repair-equipment-btn"
+                                class="mt-2 text-sm px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-md">+
+                                افزودن تجهیز جدید</button>
+                        @endif
                     </div>
 
                     {{-- Payments Section --}}
@@ -265,68 +303,87 @@
                                         <input type="hidden" name="payments[{{ $index }}][id]"
                                             value="{{ $payment->id }}">
                                         <div class="grid md:grid-cols-4 gap-3">
-                                            <div class="md:col-span-2"> {{-- Title for payment --}}
+                                            <div class="md:col-span-2">
                                                 <label class="block text-xs dark:text-gray-300">عنوان/شرح پرداخت</label>
                                                 <input type="text" name="payments[{{ $index }}][title]"
-                                                    value="{{ old("payments.{$index}.title", $payment->title ?? 'پرداخت تعمیر') }}"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    value="{{ old("payments.{$index}.title", $payment->title ?? 'پرداخت هزینه تعمیر') }}"
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
                                                 <input type="number" name="payments[{{ $index }}][amount]"
                                                     value="{{ old("payments.{$index}.amount", $payment->amount) }}"
                                                     min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
                                                 <input type="text" name="payments[{{ $index }}][paid_at]"
                                                     value="{{ old("payments.{$index}.paid_at", $payment->formatted_paid_at) }}"
                                                     placeholder="مثلا: 1403/01/15 10:30"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white persian-date-time-picker">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white persian-date-time-picker"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                             <div class="md:col-span-4">
                                                 <label class="block text-xs dark:text-gray-300">یادداشت</label>
                                                 <input type="text" name="payments[{{ $index }}][note]"
                                                     value="{{ old("payments.{$index}.note", $payment->note) }}"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                         </div>
-                                        <label class="flex items-center mt-2 text-sm">
-                                            <input type="checkbox" name="payments[{{ $index }}][_remove]"
-                                                value="1"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
-                                            <span class="ms-2 text-red-600 dark:text-red-400">حذف این پرداخت</span>
-                                        </label>
+                                        @if (Auth::user()->isAdmin() || $canEditThisRepair)
+                                            <label class="flex items-center mt-2 text-sm">
+                                                <input type="checkbox" name="payments[{{ $index }}][_remove]"
+                                                    value="1"
+                                                    class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
+                                                <span class="ms-2 text-red-600 dark:text-red-400">حذف این پرداخت</span>
+                                            </label>
+                                        @endif
                                     </div>
                                 @endforeach
                             @endif
                         </div>
                         <div id="new-repair-payments-placeholder"></div>
-                        <button type="button" id="add-repair-payment-btn"
-                            class="mt-2 text-sm px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-md">+ افزودن
-                            پرداخت جدید</button>
+                        @if (Auth::user()->isAdmin() || $canEditThisRepair)
+                            <button type="button" id="add-repair-payment-btn"
+                                class="mt-2 text-sm px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-md">+
+                                افزودن پرداخت جدید</button>
+                        @endif
                     </div>
 
                     <div class="mt-8 pt-6 border-t dark:border-gray-700">
-                        <button type="submit"
-                            class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-base"
-                            id="submit-repair-btn">
-                            {{ $editMode ? 'بروزرسانی تعمیر' : 'ثبت تعمیر' }}
-                        </button>
+                        @if (Auth::user()->isAdmin() || $canEditThisRepair || (!$editMode && $canCreateRepairs))
+                            <button type="submit"
+                                class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-base"
+                                id="submit-repair-btn">
+                                {{ $editMode ? 'بروزرسانی تعمیر' : 'ثبت تعمیر' }}
+                            </button>
+                        @endif
                         @if ($editMode)
                             <a href="{{ route('repairs.index') }}"
-                                class="px-6 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-400 dark:hover:bg-gray-700 ms-2 text-base">لغو</a>
+                                class="px-6 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white rounded hover:bg-gray-400 dark:hover:bg-gray-700 ms-2 text-base">بازگشت</a>
                         @endif
                     </div>
                     <p id="general-repair-error" class="text-red-600 mt-3 hidden"></p>
                 </form>
             </div>
+        @elseif(!$canCreateRepairs && Route::currentRouteName() === 'repairs.create')
+            <div class="mb-4 p-4 bg-yellow-100 dark:bg-yellow-700 text-yellow-700 dark:text-yellow-100 rounded-md">
+                شما اجازه ایجاد تعمیر جدید را ندارید.
+            </div>
+        @elseif($editMode && !$canEditThisRepair)
+            <div class="mb-4 p-4 bg-yellow-100 dark:bg-yellow-700 text-yellow-700 dark:text-yellow-100 rounded-md">
+                شما فقط اجازه مشاهده این تعمیر را دارید. برای ویرایش، باید به شما تخصیص داده شود.
+            </div>
         @endif
+
 
         {{-- Repairs List --}}
         @if (isset($repairsList) && (!($editMode ?? false) || Route::currentRouteName() === 'repairs.index'))
-            <div class="mb-4">
+            <div class="mb-4 mt-8 pt-6 border-t dark:border-gray-700">
                 <div class="flex flex-col md:flex-row justify-between items-center gap-2 md:gap-4">
                     <form method="GET" action="{{ route('repairs.index') }}"
                         class="w-full flex flex-col md:flex-row md:items-center gap-2">
@@ -335,7 +392,7 @@
                             class="w-full md:flex-grow rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                         <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             <select name="sort_field"
-                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="performed_date"
                                     {{ request('sort_field', 'performed_date') == 'performed_date' ? 'selected' : '' }}>
                                     تاریخ انجام</option>
@@ -345,7 +402,7 @@
                                     تاریخ ثبت</option>
                             </select>
                             <select name="sort_direction"
-                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="desc"
                                     {{ request('sort_direction', 'desc') == 'desc' ? 'selected' : '' }}>نزولی</option>
                                 <option value="asc" {{ request('sort_direction') == 'asc' ? 'selected' : '' }}>صعودی
@@ -360,7 +417,12 @@
                                 کردن فیلتر</a>
                         @endif
                     </form>
-                    {{-- No separate "Create New Repair" button here as form is above on index --}}
+                    {{-- "Create New Repair" button only for Admins, visible on index page when no form is shown above --}}
+                    @if (Auth::check() && Auth::user()->isAdmin() && !$showForm && Route::currentRouteName() === 'repairs.index')
+                        <a href="{{ route('repairs.create') }}"
+                            class="mt-2 md:mt-0 w-full md:w-auto text-center px-4 py-2 bg-green-500 text-white rounded shadow-sm hover:bg-green-600 whitespace-nowrap">ایجاد
+                            تعمیر جدید</a>
+                    @endif
                 </div>
             </div>
 
@@ -386,20 +448,27 @@
                                 <td class="p-3">{{ Str::words($repairItem->description ?? '', 5, '...') }}</td>
                                 <td class="p-3">{{ number_format($repairItem->cost) }}</td>
                                 <td class="p-3">{{ $repairItem->user->name ?? 'مشخص نشده' }}</td>
-                                {{-- Assuming 'user' is the relation for assigned_to --}}
                                 <td class="p-3">{{ $repairItem->formatted_performed_date ?: 'N/A' }}</td>
                                 <td class="p-3">{{ $repairItem->formatted_created_at ?: 'N/A' }}</td>
                                 <td class="p-3 whitespace-nowrap">
-                                    <a href="{{ route('repairs.edit', $repairItem->id) }}"
-                                        class="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 px-2 py-1">ویرایش</a>
-                                    <form action="{{ route('repairs.destroy', $repairItem->id) }}" method="POST"
-                                        class="inline-block"
-                                        onsubmit="return confirm('آیا از حذف این تعمیر مطمئن هستید؟ موجودی تجهیزات مصرفی به انبار بازگردانده خواهد شد.');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                            class="text-red-600 hover:text-red-800 dark:hover:text-red-400 px-2 py-1">حذف</button>
-                                    </form>
+                                    @if (Auth::user()->isAdmin() || (Auth::user()->isStaff() && $repairItem->assigned_to == Auth::id()))
+                                        <a href="{{ route('repairs.edit', $repairItem->id) }}"
+                                            class="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 px-2 py-1">ویرایش</a>
+                                    @else
+                                        <a href="{{ route('repairs.edit', $repairItem->id) }}"
+                                            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1">مشاهده</a>
+                                    @endif
+                                    @if (Auth::user()->isAdmin())
+                                        {{-- Only Admins can delete --}}
+                                        <form action="{{ route('repairs.destroy', $repairItem->id) }}" method="POST"
+                                            class="inline-block"
+                                            onsubmit="return confirm('آیا از حذف این تعمیر مطمئن هستید؟ موجودی تجهیزات مصرفی به انبار بازگردانده خواهد شد.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="text-red-600 hover:text-red-800 dark:hover:text-red-400 px-2 py-1">حذف</button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -423,8 +492,9 @@
     </div>
 
     <script>
-        // Ensure currentJalaliDateTimeForJS_Repairs is defined (from the script tag above the main script)
+        // Ensure currentJalaliDateTimeForJS_Repairs is defined
         // const currentJalaliDateTimeForJS_Repairs = @json($currentJalaliDateTime ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d H:i'));
+        // const currentJalaliDateForJS_Repairs = @json($currentJalaliDate ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d'));
     </script>
 
     <script>
@@ -474,7 +544,6 @@
                 });
             }
 
-            // Dynamic Equipments for Repairs
             const addRepairEquipmentBtn = document.getElementById('add-repair-equipment-btn');
             const newRepairEquipmentsPlaceholder = document.getElementById('new-repair-equipments-placeholder');
             let newRepairEquipmentDynamicIndex =
@@ -533,7 +602,6 @@
                 });
             }
 
-            // Dynamic Payments for Repairs
             const addRepairPaymentBtn = document.getElementById('add-repair-payment-btn');
             const newRepairPaymentsPlaceholder = document.getElementById('new-repair-payments-placeholder');
             let newRepairPaymentDynamicIndex =
@@ -553,7 +621,7 @@
                         <h4 class="text-md font-semibold dark:text-indigo-300">پرداخت جدید #${newRepairPaymentDynamicIndex + 1}</h4>
                         <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn">&times; حذف</button>
                     </div>
-                    <div class="grid md:grid-cols-4 gap-3"> {{-- Changed to 4 columns --}}
+                    <div class="grid md:grid-cols-4 gap-3">
                         <div class="md:col-span-2">
                             <label class="block text-xs dark:text-gray-300">عنوان/شرح پرداخت</label>
                             <input type="text" name="new_payments[${newRepairPaymentDynamicIndex}][title]" value="پرداخت هزینه تعمیر" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
@@ -573,12 +641,28 @@
                     </div>
                 `;
                     newRepairPaymentsPlaceholder.appendChild(div);
-
-                    // If you add a JS date picker library later, initialize it here for the new field:
                     const newPaidAtInput = div.querySelector('.persian-date-time-picker');
                     if (newPaidAtInput && typeof initializePersianDateTimePicker ===
-                        'function') { // Assuming you'll create this function
-                        // initializePersianDateTimePicker(newPaidAtInput);
+                        'function') { // Assuming you create this function
+                        // initializePersianDateTimePicker(newPaidAtInput, true);
+                    } else if (newPaidAtInput && typeof $ !== 'undefined' && $.fn.persianDatepicker) {
+                        $(newPaidAtInput).persianDatepicker({
+                            format: 'YYYY/MM/DD HH:mm',
+                            initialValue: !newPaidAtInput.value,
+                            timePicker: {
+                                enabled: true,
+                                meridiem: {
+                                    enabled: false
+                                }
+                            },
+                            toolbox: {
+                                calendarSwitch: {
+                                    enabled: true
+                                }
+                            },
+                            altField: newPaidAtInput,
+                            altFormat: 'YYYY/MM/DD HH:mm',
+                        });
                     }
                     newRepairPaymentDynamicIndex++;
                 });
@@ -590,26 +674,30 @@
                 }
             });
 
-            // Initialize date pickers for any existing persian-date-picker fields (for edit mode)
-            // and for the main repair_performed_date field
             document.querySelectorAll('.persian-date-picker, .persian-date-time-picker').forEach(el => {
-                if (typeof initializePersianDateTimePicker ===
-                    'function') { // Assuming you'll create this function
-                    // initializePersianDateTimePicker(el, el.classList.contains('persian-date-time-picker'));
-                } else if (typeof $ !== 'undefined' && $.fn
-                    .persianDatepicker) { // Basic fallback if jQuery persianDatepicker is loaded
+                if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
                     $(el).persianDatepicker({
                         format: el.classList.contains('persian-date-time-picker') ?
                             'YYYY/MM/DD HH:mm' : 'YYYY/MM/DD',
-                        initialValue: !el.value, // Default to today if empty
+                        initialValue: false, // Do not default existing fields to today unless explicitly set
                         timePicker: {
-                            enabled: el.classList.contains('persian-date-time-picker')
-                        }
+                            enabled: el.classList.contains('persian-date-time-picker'),
+                            meridiem: {
+                                enabled: false
+                            }
+                        },
+                        toolbox: {
+                            calendarSwitch: {
+                                enabled: true
+                            }
+                        },
+                        observer: true,
+                        altField: el,
+                        altFormat: el.classList.contains('persian-date-time-picker') ?
+                            'YYYY/MM/DD HH:mm' : 'YYYY/MM/DD',
                     });
                 }
             });
-
-
         });
     </script>
 @endsection

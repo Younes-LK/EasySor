@@ -5,25 +5,36 @@
 @endsection
 
 @section('content')
-    {{-- Helpers --}}
     @php
         use Illuminate\Support\Str;
         use Morilog\Jalali\Jalalian;
-
-        // Ensure $maintenance is defined, even if it's a new instance for create form
         $maintenance = $maintenance ?? new \App\Models\Maintenance();
-        // Ensure $editMode is defined
         $editMode = $editMode ?? false;
+        $canCreate = Auth::check() && Auth::user()->isAdmin();
+        $canEditThis =
+            Auth::check() &&
+            (Auth::user()->isAdmin() ||
+                ($editMode && Auth::user()->isStaff() && $maintenance->assigned_to == Auth::id()));
+        $showForm =
+            Route::currentRouteName() === 'maintenances.create' ||
+            $editMode ||
+            (Auth::check() &&
+                Auth::user()->isAdmin() &&
+                Route::currentRouteName() === 'maintenances.index' &&
+                !$editMode);
     @endphp
 
     <div class="container mx-auto px-4 py-6">
         <h2 class="text-xl font-bold mb-4 dark:text-white">
-            @if (Route::currentRouteName() === 'maintenances.create')
+            @if (Route::currentRouteName() === 'maintenances.create' && $canCreate)
                 ایجاد سرویس دوره‌ای جدید
             @elseif($editMode)
                 ویرایش سرویس دوره‌ای: (مشتری: {{ $maintenance->customer->name ?? 'N/A' }})
             @else
                 مدیریت سرویس‌های دوره‌ای
+                @if (Auth::check() && Auth::user()->isStaff())
+                    (فقط موارد ارجاع شده به شما)
+                @endif
             @endif
         </h2>
 
@@ -50,10 +61,7 @@
             const usersData_Maintenances = @json($users ?? []);
         </script>
 
-        {{-- Form is shown for create route, edit route, or index route when not editing --}}
-        @if (Route::currentRouteName() === 'maintenances.create' ||
-                $editMode ||
-                (Route::currentRouteName() === 'maintenances.index' && !$editMode))
+        @if ($showForm || ($editMode && $canEditThis))
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6">
                 <form method="POST"
                     action="{{ $editMode ? route('maintenances.update', $maintenance->id) : route('maintenances.store') }}"
@@ -74,7 +82,7 @@
                                 for="maintenance_customer_id">مشتری</label>
                             <select id="maintenance_customer_id" name="customer_id"
                                 class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                {{ $editMode && $maintenance->customer_id ? 'disabled' : '' }}>
+                                {{ ($editMode && $maintenance->customer_id) || ($editMode && Auth::user()->isStaff()) ? 'disabled' : '' }}>
                                 <option value="">انتخاب کنید</option>
                                 @foreach ($customers ?? [] as $customerOption)
                                     <option value="{{ $customerOption->id }}"
@@ -83,7 +91,7 @@
                                     </option>
                                 @endforeach
                             </select>
-                            @if ($editMode && $maintenance->customer_id)
+                            @if (($editMode && $maintenance->customer_id) || ($editMode && Auth::user()->isStaff()))
                                 <input type="hidden" name="customer_id" value="{{ $maintenance->customer_id }}">
                             @endif
                             @error('customer_id')
@@ -96,7 +104,8 @@
                             <label class="block text-sm font-medium dark:text-white"
                                 for="maintenance_customer_address_id">آدرس مشتری</label>
                             <select id="maintenance_customer_address_id" name="customer_address_id"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() ? 'disabled' : '' }}>
                                 <option value="">ابتدا مشتری را انتخاب کنید</option>
                                 @php
                                     $currentMaintenanceCustomerId = old(
@@ -125,6 +134,10 @@
                                     }
                                 @endphp
                             </select>
+                            @if ($editMode && Auth::user()->isStaff())
+                                <input type="hidden" name="customer_address_id"
+                                    value="{{ $maintenance->customer_address_id }}">
+                            @endif
                             @error('customer_address_id')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -135,7 +148,8 @@
                             <label class="block text-sm font-medium dark:text-white" for="maintenance_assigned_to">تکنسین
                                 مسئول سرویس</label>
                             <select id="maintenance_assigned_to" name="assigned_to"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() ? 'disabled' : '' }}>
                                 <option value="">انتخاب کنید</option>
                                 @foreach ($users ?? [] as $user)
                                     <option value="{{ $user->id }}"
@@ -144,6 +158,9 @@
                                     </option>
                                 @endforeach
                             </select>
+                            @if ($editMode && Auth::user()->isStaff())
+                                <input type="hidden" name="assigned_to" value="{{ $maintenance->assigned_to }}">
+                            @endif
                             @error('assigned_to')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -156,7 +173,8 @@
                             <input type="text" id="maintenance_start_date" name="start_date"
                                 value="{{ old('start_date', $maintenance->start_date ? $maintenance->formatted_start_date : $currentJalaliDate ?? '') }}"
                                 placeholder="مثلا: 1403/01/15"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 persian-date-picker">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 persian-date-picker"
+                                {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                             @error('start_date')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -169,7 +187,8 @@
                             <input type="number" id="maintenance_duration_in_months" name="duration_in_months"
                                 value="{{ old('duration_in_months', $maintenance->duration_in_months ?? '12') }}"
                                 min="1"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                             @error('duration_in_months')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
@@ -181,37 +200,43 @@
                                 ماهانه (تومان)</label>
                             <input type="number" id="maintenance_monthly_price" name="monthly_price"
                                 value="{{ old('monthly_price', $maintenance->monthly_price ?? '0') }}" min="0"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                             @error('monthly_price')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
                         </div>
 
-                        {{-- Total Price (Can be auto-calculated or manual) --}}
                         <div class="md:col-span-1">
                             <label class="block text-sm font-medium dark:text-white" for="maintenance_total_price">مبلغ کل
                                 قرارداد (تومان)</label>
                             <input type="number" id="maintenance_total_price" name="total_price"
                                 value="{{ old('total_price', $maintenance->total_price ?? '0') }}" min="0"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                             @error('total_price')
                                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                             @enderror
                         </div>
-                        <div class="md:col-span-2 flex items-end pb-2">
-                            <button type="button" id="calculate_total_price_btn"
-                                class="text-xs px-3 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md">محاسبه
-                                خودکار مبلغ کل</button>
-                        </div>
-
+                        @if (Auth::user()->isAdmin())
+                            <div class="md:col-span-2 flex items-end pb-2">
+                                <button type="button" id="calculate_total_price_btn"
+                                    class="text-xs px-3 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md">محاسبه
+                                    خودکار مبلغ کل</button>
+                            </div>
+                        @endif
 
                         <div class="md:col-span-3">
                             <label class="flex items-center dark:text-white mt-2">
                                 <input type="checkbox" name="is_active" value="1"
                                     class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 shadow-sm focus:ring-indigo-500"
-                                    {{ old('is_active', $maintenance->is_active ?? true) ? 'checked' : '' }}>
+                                    {{ old('is_active', $maintenance->is_active ?? true) ? 'checked' : '' }}
+                                    {{ $editMode && Auth::user()->isStaff() ? 'disabled' : '' }}>
                                 <span class="ms-2">سرویس فعال است</span>
                             </label>
+                            @if ($editMode && Auth::user()->isStaff())
+                                <input type="hidden" name="is_active" value="{{ $maintenance->is_active ? 1 : 0 }}">
+                            @endif
                         </div>
                     </div>
 
@@ -228,19 +253,29 @@
                                             value="{{ $log->id }}">
                                         <div class="flex justify-between items-center mb-2">
                                             <h4 class="text-md font-semibold dark:text-indigo-300">گزارش سرویس
-                                                #{{ $logIndex + 1 }}</h4>
-                                            <label class="flex items-center text-sm">
-                                                <input type="checkbox" name="logs[{{ $logIndex }}][_remove]"
-                                                    value="1"
-                                                    class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
-                                                <span class="ms-2 text-red-600 dark:text-red-400">حذف این گزارش</span>
-                                            </label>
+                                                #{{ $logIndex + 1 }}
+                                                @if ($log->user)
+                                                    (توسط: {{ $log->user->name }})
+                                                @endif
+                                                @if ($log->performed_at)
+                                                    - {{ $log->formatted_performed_at }}
+                                                @endif
+                                            </h4>
+                                            @if (Auth::user()->isAdmin() || (Auth::user()->isStaff() && $log->performed_by == Auth::id()))
+                                                <label class="flex items-center text-sm">
+                                                    <input type="checkbox" name="logs[{{ $logIndex }}][_remove]"
+                                                        value="1"
+                                                        class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
+                                                    <span class="ms-2 text-red-600 dark:text-red-400">حذف این گزارش</span>
+                                                </label>
+                                            @endif
                                         </div>
                                         <div class="grid md:grid-cols-3 gap-4">
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">انجام شده توسط</label>
                                                 <select name="logs[{{ $logIndex }}][performed_by]"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"
+                                                    {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'disabled' : '' }}>
                                                     <option value="">انتخاب تکنسین</option>
                                                     @foreach ($users ?? [] as $userOption)
                                                         <option value="{{ $userOption->id }}"
@@ -248,30 +283,40 @@
                                                             {{ $userOption->name }}</option>
                                                     @endforeach
                                                 </select>
+                                                @if (Auth::user()->isStaff() && $log->performed_by != Auth::id())
+                                                    <input type="hidden" name="logs[{{ $logIndex }}][performed_by]"
+                                                        value="{{ $log->performed_by }}">
+                                                @endif
                                             </div>
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">تاریخ انجام</label>
                                                 <input type="text" name="logs[{{ $logIndex }}][performed_at]"
                                                     value="{{ old("logs.{$logIndex}.performed_at", $log->formatted_performed_at) }}"
                                                     placeholder="مثلا: 1403/01/15 10:30"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker"
+                                                    {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'readonly' : '' }}>
                                             </div>
                                             <div class="flex items-end">
                                                 <label class="flex items-center text-sm dark:text-white">
                                                     <input type="checkbox" name="logs[{{ $logIndex }}][sms_sent]"
                                                         value="1" class="rounded"
-                                                        {{ old("logs.{$logIndex}.sms_sent", $log->sms_sent) ? 'checked' : '' }}>
+                                                        {{ old("logs.{$logIndex}.sms_sent", $log->sms_sent) ? 'checked' : '' }}
+                                                        {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'disabled' : '' }}>
                                                     <span class="ms-2">پیامک ارسال شد</span>
                                                 </label>
+                                                @if (Auth::user()->isStaff() && $log->performed_by != Auth::id())
+                                                    <input type="hidden" name="logs[{{ $logIndex }}][sms_sent]"
+                                                        value="{{ $log->sms_sent ? 1 : 0 }}">
+                                                @endif
                                             </div>
                                             <div class="md:col-span-3">
                                                 <label class="block text-xs dark:text-gray-300">یادداشت گزارش</label>
                                                 <textarea name="logs[{{ $logIndex }}][note]" rows="2"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">{{ old("logs.{$logIndex}.note", $log->note) }}</textarea>
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"
+                                                    {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'readonly' : '' }}>{{ old("logs.{$logIndex}.note", $log->note) }}</textarea>
                                             </div>
                                         </div>
 
-                                        {{-- Nested Equipments for this Log --}}
                                         <div class="mt-3 pt-3 border-t dark:border-gray-500">
                                             <h5 class="text-sm font-semibold mb-1 dark:text-gray-200">تجهیزات مصرفی در این
                                                 سرویس:</h5>
@@ -297,7 +342,8 @@
                                                                         name="logs[{{ $logIndex }}][equipments][{{ $equipIndex }}][quantity]"
                                                                         value="{{ old("logs.{$logIndex}.equipments.{$equipIndex}.quantity", $logEquipment->quantity) }}"
                                                                         min="0"
-                                                                        class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white">
+                                                                        class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white"
+                                                                        {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'readonly' : '' }}>
                                                                 </div>
                                                                 <div>
                                                                     <label class="block text-xs dark:text-gray-400">قیمت
@@ -306,7 +352,8 @@
                                                                         name="logs[{{ $logIndex }}][equipments][{{ $equipIndex }}][unit_price]"
                                                                         value="{{ old("logs.{$logIndex}.equipments.{$equipIndex}.unit_price", $logEquipment->unit_price) }}"
                                                                         min="0"
-                                                                        class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white">
+                                                                        class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white"
+                                                                        {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'readonly' : '' }}>
                                                                 </div>
                                                                 <div class="md:col-span-2">
                                                                     <label class="block text-xs dark:text-gray-400">یادداشت
@@ -314,33 +361,44 @@
                                                                     <input type="text"
                                                                         name="logs[{{ $logIndex }}][equipments][{{ $equipIndex }}][notes]"
                                                                         value="{{ old("logs.{$logIndex}.equipments.{$equipIndex}.notes", $logEquipment->notes) }}"
-                                                                        class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white">
+                                                                        class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white"
+                                                                        {{ Auth::user()->isStaff() && $log->performed_by != Auth::id() ? 'readonly' : '' }}>
                                                                 </div>
                                                             </div>
-                                                            <label class="flex items-center mt-1 text-xs">
-                                                                <input type="checkbox"
-                                                                    name="logs[{{ $logIndex }}][equipments][{{ $equipIndex }}][_remove]"
-                                                                    value="1" class="rounded text-red-500">
-                                                                <span
-                                                                    class="ms-1 text-red-500 dark:text-red-400">حذف</span>
-                                                            </label>
+                                                            @if (Auth::user()->isAdmin() || (Auth::user()->isStaff() && $log->performed_by == Auth::id()))
+                                                                <label class="flex items-center mt-1 text-xs">
+                                                                    <input type="checkbox"
+                                                                        name="logs[{{ $logIndex }}][equipments][{{ $equipIndex }}][_remove]"
+                                                                        value="1" class="rounded text-red-500">
+                                                                    <span
+                                                                        class="ms-1 text-red-500 dark:text-red-400">حذف</span>
+                                                                </label>
+                                                            @endif
                                                         </div>
                                                     @endforeach
                                                 @endif
                                             </div>
                                             <div id="new-log-{{ $logIndex }}-equipments-placeholder"></div>
-                                            <button type="button"
-                                                class="add-log-equipment-btn mt-1 text-xs px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-md"
-                                                data-log-index="{{ $logIndex }}">+ افزودن تجهیز به این گزارش</button>
+                                            @if (Auth::user()->isAdmin() || (Auth::user()->isStaff() && $log->performed_by == Auth::id()))
+                                                <button type="button"
+                                                    class="add-log-equipment-btn mt-1 text-xs px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-md"
+                                                    data-log-index="{{ $logIndex }}">+ افزودن تجهیز به این
+                                                    گزارش</button>
+                                            @endif
                                         </div>
                                     </div>
                                 @endforeach
                             @endif
                         </div>
                         <div id="new-maintenance-logs-placeholder"></div>
-                        <button type="button" id="add-maintenance-log-btn"
-                            class="mt-2 text-sm px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-md">+
-                            افزودن گزارش سرویس جدید</button>
+                        {{-- Staff can add logs to their own assigned maintenance contracts --}}
+                        @if (Auth::user()->isAdmin() ||
+                                ($editMode && Auth::user()->isStaff() && $maintenance->assigned_to == Auth::id()) ||
+                                (!$editMode && Auth::user()->isAdmin()))
+                            <button type="button" id="add-maintenance-log-btn"
+                                class="mt-2 text-sm px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-md">+
+                                افزودن گزارش سرویس جدید</button>
+                        @endif
                     </div>
 
                     {{-- Maintenance Payments Section --}}
@@ -354,42 +412,49 @@
                                         data-index="{{ $index }}">
                                         <input type="hidden" name="payments[{{ $index }}][id]"
                                             value="{{ $payment->id }}">
-                                        <div class="grid md:grid-cols-3 gap-3"> {{-- Note: MaintenancePayment migration doesn't have 'title' --}}
+                                        <div class="grid md:grid-cols-3 gap-3">
                                             <div class="md:col-span-1">
                                                 <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
                                                 <input type="number" name="payments[{{ $index }}][amount]"
                                                     value="{{ old("payments.{$index}.amount", $payment->amount) }}"
                                                     min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                                             </div>
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
                                                 <input type="text" name="payments[{{ $index }}][paid_at]"
                                                     value="{{ old("payments.{$index}.paid_at", $payment->formatted_paid_at) }}"
                                                     placeholder="مثلا: 1403/01/15 10:30"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white persian-date-time-picker">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white persian-date-time-picker"
+                                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                                             </div>
                                             <div class="md:col-span-3">
                                                 <label class="block text-xs dark:text-gray-300">یادداشت</label>
                                                 <input type="text" name="payments[{{ $index }}][note]"
                                                     value="{{ old("payments.{$index}.note", $payment->note) }}"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
                                             </div>
                                         </div>
-                                        <label class="flex items-center mt-2 text-sm">
-                                            <input type="checkbox" name="payments[{{ $index }}][_remove]"
-                                                value="1"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
-                                            <span class="ms-2 text-red-600 dark:text-red-400">حذف این پرداخت</span>
-                                        </label>
+                                        @if (Auth::user()->isAdmin())
+                                            <label class="flex items-center mt-2 text-sm">
+                                                <input type="checkbox" name="payments[{{ $index }}][_remove]"
+                                                    value="1"
+                                                    class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
+                                                <span class="ms-2 text-red-600 dark:text-red-400">حذف این پرداخت</span>
+                                            </label>
+                                        @endif
                                     </div>
                                 @endforeach
                             @endif
                         </div>
                         <div id="new-maintenance-payments-placeholder"></div>
-                        <button type="button" id="add-maintenance-payment-btn"
-                            class="mt-2 text-sm px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-md">+ افزودن
-                            پرداخت جدید</button>
+                        @if (Auth::user()->isAdmin())
+                            <button type="button" id="add-maintenance-payment-btn"
+                                class="mt-2 text-sm px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-md">+ افزودن
+                                پرداخت جدید</button>
+                        @endif
                     </div>
 
                     <div class="mt-8 pt-6 border-t dark:border-gray-700">
@@ -419,7 +484,7 @@
                             class="w-full md:flex-grow rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                         <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             <select name="sort_field"
-                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="start_date"
                                     {{ request('sort_field', 'start_date') == 'start_date' ? 'selected' : '' }}>تاریخ شروع
                                 </option>
@@ -429,7 +494,7 @@
                                     وضعیت</option>
                             </select>
                             <select name="sort_direction"
-                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="desc"
                                     {{ request('sort_direction', 'desc') == 'desc' ? 'selected' : '' }}>نزولی</option>
                                 <option value="asc" {{ request('sort_direction') == 'asc' ? 'selected' : '' }}>صعودی
@@ -444,6 +509,7 @@
                                 کردن فیلتر</a>
                         @endif
                     </form>
+                    {{-- "Create New" button is removed for staff, form is above for admins --}}
                 </div>
             </div>
 
@@ -483,16 +549,21 @@
                                 </td>
                                 <td class="p-3">{{ $item->user->name ?? 'N/A' }}</td>
                                 <td class="p-3 whitespace-nowrap">
-                                    <a href="{{ route('maintenances.edit', $item->id) }}"
-                                        class="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 px-2 py-1">ویرایش</a>
-                                    <form action="{{ route('maintenances.destroy', $item->id) }}" method="POST"
-                                        class="inline-block"
-                                        onsubmit="return confirm('آیا از حذف این سرویس دوره‌ای و تمام گزارشات و پرداخت‌های مرتبط مطمئن هستید؟');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                            class="text-red-600 hover:text-red-800 dark:hover:text-red-400 px-2 py-1">حذف</button>
-                                    </form>
+                                    @if (Auth::user()->isAdmin() || (Auth::user()->isStaff() && $item->assigned_to == Auth::id()))
+                                        <a href="{{ route('maintenances.edit', $item->id) }}"
+                                            class="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 px-2 py-1">ویرایش</a>
+                                    @endif
+                                    @if (Auth::user()->isAdmin())
+                                        {{-- Only Admins can delete --}}
+                                        <form action="{{ route('maintenances.destroy', $item->id) }}" method="POST"
+                                            class="inline-block"
+                                            onsubmit="return confirm('آیا از حذف این سرویس دوره‌ای و تمام گزارشات و پرداخت‌های مرتبط مطمئن هستید؟');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="text-red-600 hover:text-red-800 dark:hover:text-red-400 px-2 py-1">حذف</button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -516,11 +587,29 @@
     </div>
 
     <script>
+        // Ensure currentJalaliDateTimeForJS_Maintenances and currentJalaliDateForJS_Maintenances are defined
+        // const currentJalaliDateTimeForJS_Maintenances = @json($currentJalaliDateTime ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d H:i'));
+        // const currentJalaliDateForJS_Maintenances = @json($currentJalaliDate ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d'));
+        // const availableEquipmentsData_Maintenances = @json($availableEquipments ?? []);
+        // const usersData_Maintenances = @json($users ?? []);
+    </script>
+    <script>
+        // This script should be largely similar to the one in repairs.blade.php,
+        // but with IDs and variable names prefixed/suffixed for maintenances
+        // to avoid conflicts if scripts are ever combined or run on the same page.
+        // For brevity, I'll outline the key parts that need to be adapted.
+        // The full JS for dynamic rows (logs, equipment in logs, payments) would be extensive.
+
         document.addEventListener('DOMContentLoaded', () => {
             const maintenanceCustomerSelect = document.getElementById('maintenance_customer_id');
             const maintenanceAddressSelect = document.getElementById('maintenance_customer_address_id');
             const maintenanceCustomersWithAddressesData = typeof customersWithAddresses !== 'undefined' ?
                 customersWithAddresses : @json($customersWithAddresses ?? []);
+            const maintenanceAvailableEquipmentsData = typeof availableEquipmentsData_Maintenances !== 'undefined' ?
+                availableEquipmentsData_Maintenances : [];
+            const maintenanceUsersData = typeof usersData_Maintenances !== 'undefined' ? usersData_Maintenances :
+        [];
+
 
             function populateMaintenanceAddresses(customerId, selectedAddressId = null) {
                 if (!maintenanceAddressSelect) return;
@@ -565,14 +654,16 @@
             const totalPriceInput = document.getElementById('maintenance_total_price');
             const calculateBtn = document.getElementById('calculate_total_price_btn');
 
-            function calculateTotalPrice() {
-                const duration = parseInt(durationInput.value) || 0;
-                const monthlyPrice = parseInt(monthlyPriceInput.value) || 0;
-                totalPriceInput.value = duration * monthlyPrice;
+            function calculateMaintenanceTotalPrice() {
+                if (durationInput && monthlyPriceInput && totalPriceInput) {
+                    const duration = parseInt(durationInput.value) || 0;
+                    const monthlyPrice = parseInt(monthlyPriceInput.value) || 0;
+                    totalPriceInput.value = duration * monthlyPrice;
+                }
             }
-            if (calculateBtn) calculateBtn.addEventListener('click', calculateTotalPrice);
-            if (durationInput) durationInput.addEventListener('input', calculateTotalPrice);
-            if (monthlyPriceInput) monthlyPriceInput.addEventListener('input', calculateTotalPrice);
+            if (calculateBtn) calculateBtn.addEventListener('click', calculateMaintenanceTotalPrice);
+            if (durationInput) durationInput.addEventListener('input', calculateMaintenanceTotalPrice);
+            if (monthlyPriceInput) monthlyPriceInput.addEventListener('input', calculateMaintenanceTotalPrice);
 
 
             // --- Dynamic Maintenance Logs ---
@@ -583,87 +674,91 @@
 
             if (addMaintenanceLogBtn && newMaintenanceLogsPlaceholder) {
                 addMaintenanceLogBtn.addEventListener('click', () => {
-                    const logIndex =
-                        newMaintenanceLogDynamicIndex; // Capture current index for this new log
+                    const logIndex = newMaintenanceLogDynamicIndex;
                     const logDiv = document.createElement('div');
                     logDiv.classList.add('p-4', 'mb-3', 'border', 'dark:border-gray-600', 'rounded-lg',
                         'maintenance-log-item', 'bg-gray-50', 'dark:bg-gray-700/50');
                     logDiv.dataset.logIndex = logIndex;
 
                     let userOptions = '<option value="">انتخاب تکنسین</option>';
-                    usersData_Maintenances.forEach(user => {
-                        userOptions += `<option value="${user.id}">${user.name}</option>`;
+                    maintenanceUsersData.forEach(user => { // Use maintenance specific user data
+                        userOptions +=
+                            `<option value="${user.id}" ${user.id == {{ Auth::id() }} ? 'selected' : ''}>${user.name}</option>`;
                     });
+                    const defaultPerformedAt = (typeof currentJalaliDateTimeForJS_Maintenances !==
+                            'undefined' && currentJalaliDateTimeForJS_Maintenances) ?
+                        currentJalaliDateTimeForJS_Maintenances : '';
 
                     logDiv.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="text-md font-semibold dark:text-indigo-300">گزارش سرویس جدید #${logIndex + 1}</h4>
-                        <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="log">&times; حذف گزارش</button>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-md font-semibold dark:text-indigo-300">گزارش سرویس جدید #${logIndex + 1}</h4>
+                    <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="log">&times; حذف گزارش</button>
+                </div>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs dark:text-gray-300">انجام شده توسط</label>
+                        <select name="new_logs[${logIndex}][performed_by]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
+                            ${userOptions}
+                        </select>
                     </div>
-                    <div class="grid md:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-xs dark:text-gray-300">انجام شده توسط</label>
-                            <select name="new_logs[${logIndex}][performed_by]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                                ${userOptions}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs dark:text-gray-300">تاریخ انجام</label>
-                            <input type="text" name="new_logs[${logIndex}][performed_at]" value="${currentJalaliDateTimeForJS_Maintenances}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
-                        </div>
-                        <div class="flex items-end">
-                            <label class="flex items-center text-sm dark:text-white">
-                                <input type="checkbox" name="new_logs[${logIndex}][sms_sent]" value="1" class="rounded">
-                                <span class="ms-2">پیامک ارسال شد</span>
-                            </label>
-                        </div>
-                        <div class="md:col-span-3">
-                            <label class="block text-xs dark:text-gray-300">یادداشت گزارش</label>
-                            <textarea name="new_logs[${logIndex}][note]" rows="2" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"></textarea>
-                        </div>
+                    <div>
+                        <label class="block text-xs dark:text-gray-300">تاریخ انجام</label>
+                        <input type="text" name="new_logs[${logIndex}][performed_at]" value="${defaultPerformedAt}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
                     </div>
-                    <div class="mt-3 pt-3 border-t dark:border-gray-500">
-                        <h5 class="text-sm font-semibold mb-1 dark:text-gray-200">تجهیزات مصرفی در این سرویس:</h5>
-                        <div id="new-log-${logIndex}-equipments-placeholder"></div>
-                        <button type="button" class="add-log-equipment-btn mt-1 text-xs px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-md" data-log-index="${logIndex}">+ افزودن تجهیز به این گزارش</button>
+                    <div class="flex items-end">
+                        <label class="flex items-center text-sm dark:text-white">
+                            <input type="checkbox" name="new_logs[${logIndex}][sms_sent]" value="1" class="rounded">
+                            <span class="ms-2">پیامک ارسال شد</span>
+                        </label>
                     </div>
-                `;
+                    <div class="md:col-span-3">
+                        <label class="block text-xs dark:text-gray-300">یادداشت گزارش</label>
+                        <textarea name="new_logs[${logIndex}][note]" rows="2" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"></textarea>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t dark:border-gray-500">
+                    <h5 class="text-sm font-semibold mb-1 dark:text-gray-200">تجهیزات مصرفی در این سرویس:</h5>
+                    <div id="new-log-${logIndex}-equipments-placeholder"></div>
+                    <button type="button" class="add-log-equipment-btn mt-1 text-xs px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-md" data-log-index="${logIndex}">+ افزودن تجهیز به این گزارش</button>
+                </div>
+            `;
                     newMaintenanceLogsPlaceholder.appendChild(logDiv);
-                    initializeNewPersianDatePickers(logDiv); // Initialize date picker for the new log
+                    initializeNewPersianDatePickers(logDiv);
                     newMaintenanceLogDynamicIndex++;
                 });
             }
 
-            // --- Dynamic Maintenance Log Equipments ---
-            document.getElementById('maintenance-logs-container').addEventListener('click', function(event) {
-                if (event.target.classList.contains('add-log-equipment-btn')) {
-                    const logIndex = event.target.dataset.logIndex;
-                    const logEquipmentsPlaceholder = document.getElementById(
-                        `new-log-${logIndex}-equipments-placeholder`) || document.getElementById(
-                        `log-${logIndex}-equipments-container`); // Fallback for existing logs
+            // Event delegation for adding equipment to logs
+            const maintenanceLogsContainer = document.getElementById('maintenance-logs-container');
+            if (maintenanceLogsContainer) {
+                maintenanceLogsContainer.addEventListener('click', function(event) {
+                    if (event.target.classList.contains('add-log-equipment-btn')) {
+                        const logIndex = event.target.dataset.logIndex;
+                        const logEquipmentsPlaceholder = document.getElementById(
+                            `new-log-${logIndex}-equipments-placeholder`) || document.getElementById(
+                            `log-${logIndex}-equipments-container`);
 
-                    // Determine if this is for a new log or an existing log to set the name attribute correctly
-                    const parentLogItem = event.target.closest('.maintenance-log-item');
-                    const isNewLog = parentLogItem.parentElement.id === 'new-maintenance-logs-placeholder';
-                    const namePrefix = isNewLog ? `new_logs[${logIndex}]` : `logs[${logIndex}]`;
+                        const parentLogItem = event.target.closest('.maintenance-log-item');
+                        const isNewLog = parentLogItem.parentElement.id ===
+                            'new-maintenance-logs-placeholder';
+                        const namePrefix = isNewLog ? `new_logs[${logIndex}]` : `logs[${logIndex}]`;
 
-                    const equipCount = logEquipmentsPlaceholder.querySelectorAll('.log-equipment-item')
-                        .length +
-                        logEquipmentsPlaceholder.querySelectorAll('.new-log-equipment-item').length;
+                        const equipCount = logEquipmentsPlaceholder.querySelectorAll(
+                            '.log-equipment-item, .new-log-equipment-item').length;
 
+                        const equipDiv = document.createElement('div');
+                        equipDiv.classList.add('p-2', 'mb-2', 'border', 'dark:border-gray-500',
+                            'rounded-md', 'bg-gray-100', 'dark:bg-gray-600/50', 'new-log-equipment-item'
+                            );
 
-                    const equipDiv = document.createElement('div');
-                    equipDiv.classList.add('p-2', 'mb-2', 'border', 'dark:border-gray-500', 'rounded-md',
-                        'bg-gray-100', 'dark:bg-gray-600/50', 'new-log-equipment-item'
-                    ); // Added new-log-equipment-item
+                        let equipmentOptions = '<option value="">انتخاب تجهیز</option>';
+                        maintenanceAvailableEquipmentsData.forEach(
+                        eq => { // Use maintenance specific equipment data
+                            equipmentOptions +=
+                                `<option value="${eq.id}" data-price="${eq.price}" data-stock="${eq.stock_quantity}">${eq.name} (موجودی: ${eq.stock_quantity} - قیمت: ${eq.price})</option>`;
+                        });
 
-                    let equipmentOptions = '<option value="">انتخاب تجهیز</option>';
-                    availableEquipmentsData_Maintenances.forEach(eq => {
-                        equipmentOptions +=
-                            `<option value="${eq.id}" data-price="${eq.price}" data-stock="${eq.stock_quantity}">${eq.name} (موجودی: ${eq.stock_quantity} - قیمت: ${eq.price})</option>`;
-                    });
-
-                    equipDiv.innerHTML = `
+                        equipDiv.innerHTML = `
                     <div class="flex justify-between items-center mb-1">
                          <h6 class="text-xs font-semibold dark:text-indigo-200">تجهیز جدید</h6>
                         <button type="button" class="text-red-400 hover:text-red-600 remove-new-item-btn" data-type="equipment">&times; حذف</button>
@@ -689,20 +784,22 @@
                         </div>
                     </div>
                 `;
-                    logEquipmentsPlaceholder.appendChild(equipDiv);
-                }
-            });
-            // Listener for new log equipment select change (delegated)
-            document.getElementById('maintenance-logs-container').addEventListener('change', function(event) {
-                if (event.target.classList.contains('new-equipment-select')) {
-                    const selectedOption = event.target.options[event.target.selectedIndex];
-                    const priceInput = event.target.closest('.new-log-equipment-item, .log-equipment-item')
-                        .querySelector('.new-equipment-price'); // Also check existing if needed
-                    if (selectedOption && priceInput) {
-                        priceInput.value = selectedOption.dataset.price || 0;
+                        logEquipmentsPlaceholder.appendChild(equipDiv);
                     }
-                }
-            });
+                });
+                // Listener for new log equipment select change (delegated)
+                maintenanceLogsContainer.addEventListener('change', function(event) {
+                    if (event.target.classList.contains('new-equipment-select')) {
+                        const selectedOption = event.target.options[event.target.selectedIndex];
+                        const priceInput = event.target.closest(
+                            '.new-log-equipment-item, .log-equipment-item').querySelector(
+                            '.new-equipment-price');
+                        if (selectedOption && priceInput) {
+                            priceInput.value = selectedOption.dataset.price || 0;
+                        }
+                    }
+                });
+            }
 
 
             // --- Dynamic Maintenance Payments ---
@@ -723,26 +820,25 @@
                         currentJalaliDateTimeForJS_Maintenances : '';
 
                     div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="text-md font-semibold dark:text-indigo-300">پرداخت جدید #${newMaintenancePaymentDynamicIndex + 1}</h4>
-                        <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="payment">&times; حذف</button>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-md font-semibold dark:text-indigo-300">پرداخت جدید #${newMaintenancePaymentDynamicIndex + 1}</h4>
+                    <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="payment">&times; حذف</button>
+                </div>
+                <div class="grid md:grid-cols-3 gap-3">
+                    <div class="md:col-span-1">
+                        <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
+                        <input type="number" name="new_payments[${newMaintenancePaymentDynamicIndex}][amount]" value="0" min="0" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
                     </div>
-                    <div class="grid md:grid-cols-3 gap-3">
-                        {{-- Maintenance payments migration does not have a title --}}
-                        <div class="md:col-span-1">
-                            <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
-                            <input type="number" name="new_payments[${newMaintenancePaymentDynamicIndex}][amount]" value="0" min="0" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
-                            <input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][paid_at]" value="${defaultPaidAtValue}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
-                        </div>
-                        <div class="md:col-span-3">
-                            <label class="block text-xs dark:text-gray-300">یادداشت</label>
-                            <input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][note]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                        </div>
+                    <div>
+                        <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
+                        <input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][paid_at]" value="${defaultPaidAtValue}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
                     </div>
-                `;
+                    <div class="md:col-span-3">
+                        <label class="block text-xs dark:text-gray-300">یادداشت</label>
+                        <input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][note]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
+                    </div>
+                </div>
+            `;
                     newMaintenancePaymentsPlaceholder.appendChild(div);
                     initializeNewPersianDatePickers(div);
                     newMaintenancePaymentDynamicIndex++;
@@ -763,17 +859,19 @@
                 }
             });
 
-            // Function to initialize date pickers on newly added elements
             function initializeNewPersianDatePickers(parentElement) {
                 parentElement.querySelectorAll('.persian-date-picker, .persian-date-time-picker').forEach(el => {
-                    if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
+                    if (typeof $ !== 'undefined' && $.fn
+                        .persianDatepicker) { // Check if jQuery and plugin are loaded
                         $(el).persianDatepicker({
                             format: el.classList.contains('persian-date-time-picker') ?
                                 'YYYY/MM/DD HH:mm' : 'YYYY/MM/DD',
                             initialValue: !el.value && el.classList.contains(
-                                    'persian-date-time-picker') ?
-                                currentJalaliDateTimeForJS_Maintenances : (!el.value ?
-                                    currentJalaliDateForJS_Maintenances : false),
+                                'persian-date-time-picker') ? (
+                                typeof currentJalaliDateTimeForJS_Maintenances !== 'undefined' ?
+                                currentJalaliDateTimeForJS_Maintenances : false) : (!el.value ?
+                                (typeof currentJalaliDateForJS_Maintenances !== 'undefined' ?
+                                    currentJalaliDateForJS_Maintenances : false) : false),
                             timePicker: {
                                 enabled: el.classList.contains('persian-date-time-picker'),
                                 meridiem: {
@@ -785,25 +883,16 @@
                                     enabled: true
                                 }
                             },
-                            observer: true,
-                            altField: el,
+                            observer: true, // Important for dynamically added elements if datepicker itself doesn't re-scan
+                            altField: el, // To update the original input
                             altFormat: el.classList.contains('persian-date-time-picker') ?
                                 'YYYY/MM/DD HH:mm' : 'YYYY/MM/DD',
                         });
                     }
                 });
             }
-            // Initial call for existing elements on page load (e.g., in edit mode)
+            // Initial call for existing elements on page load
             initializeNewPersianDatePickers(document);
-
-
-            // Basic form validation (client-side, server-side is primary)
-            const maintenanceForm = document.getElementById('maintenance-form');
-            if (maintenanceForm) {
-                maintenanceForm.addEventListener('submit', function(e) {
-                    // Add basic client-side checks if needed, though server-side is more reliable
-                });
-            }
 
         });
     </script>

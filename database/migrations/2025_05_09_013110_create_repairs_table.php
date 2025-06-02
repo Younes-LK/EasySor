@@ -17,7 +17,7 @@ return new class () extends Migration {
             $table->string('title');
             $table->text('description')->nullable();
             $table->integer('cost');
-            $table->foreignId('assigned_to')->constrained('users');
+            $table->foreignId('assigned_to')->constrained('users')->nullable();
             $table->date('performed_date');
             $table->boolean('sms_sent')->default(false);
             $table->timestamps();

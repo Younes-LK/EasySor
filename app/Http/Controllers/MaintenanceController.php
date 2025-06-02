@@ -14,23 +14,26 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Morilog\Jalali\Jalalian;
+use Illuminate\Support\Facades\Auth; // Import Auth facade
 use Illuminate\Support\Facades\Route;
 
 class MaintenanceController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $query = Maintenance::with(['customer', 'address', 'user', 'logs', 'payments']);
+
+        // Authorization: Filter for staff
+        if (Auth::check() && Auth::user()->isStaff()) {
+            $query->where('assigned_to', Auth::id());
+        }
+        // Admins will see all
 
         if ($request->filled('search')) {
             $searchTerm = $request->search;
             $query->whereHas('customer', function ($q) use ($searchTerm) {
                 $q->where('name', 'like', '%' . $searchTerm . '%');
             });
-            // Add more search criteria if needed (e.g., on maintenance title if you add one)
         }
 
         $sortField = $request->input('sort_field', 'start_date');
@@ -53,7 +56,6 @@ class MaintenanceController extends Controller
         $currentJalaliDateTime = Jalalian::now()->format('Y/m/d H:i');
         $currentJalaliDate = Jalalian::now()->format('Y/m/d');
 
-
         return view('maintenances', [
             'maintenancesList' => $maintenancesList,
             'customers' => $customers,
@@ -68,11 +70,13 @@ class MaintenanceController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
+        // Authorization: Only admins can create
+        if (Auth::check() && !Auth::user()->isAdmin()) {
+            return redirect()->route('maintenances.index')->withErrors(['general' => 'شما اجازه ایجاد سرویس جدید را ندارید.']);
+        }
+
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $users = User::whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name']);
         $customersWithAddresses = Customer::with('addresses:id,customer_id,label,address,is_default')->get(['id', 'name']);
@@ -94,42 +98,37 @@ class MaintenanceController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
+        // Authorization: Only admins can store
+        if (Auth::check() && !Auth::user()->isAdmin()) {
+            return redirect()->route('maintenances.index')->withErrors(['general' => 'شما اجازه ثبت سرویس جدید را ندارید.']);
+        }
+
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|exists:customers,id',
             'customer_address_id' => 'required|exists:customer_addresses,id,customer_id,' . $request->customer_id,
             'assigned_to' => 'nullable|exists:users,id',
-            'start_date' => 'required|string', // Parsed from Jalali
+            'start_date' => 'required|string',
             'duration_in_months' => 'required|integer|min:1',
             'monthly_price' => 'required|numeric|min:0',
             'total_price' => 'required|numeric|min:0',
             'is_active' => 'nullable|boolean',
-
-            // New Logs
             'new_logs.*.performed_by' => 'nullable|required_with:new_logs.*.performed_at|exists:users,id',
-            'new_logs.*.performed_at' => 'nullable|required_with:new_logs.*.performed_by|string', // Parsed
+            'new_logs.*.performed_at' => 'nullable|required_with:new_logs.*.performed_by|string',
             'new_logs.*.sms_sent' => 'nullable|boolean',
             'new_logs.*.note' => 'nullable|string',
-            // New Equipment within New Logs
             'new_logs.*.new_equipments.*.equipment_id' => 'nullable|required_with:new_logs.*.new_equipments.*.quantity|exists:equipments,id',
             'new_logs.*.new_equipments.*.quantity' => 'nullable|required_with:new_logs.*.new_equipments.*.equipment_id|integer|min:1',
             'new_logs.*.new_equipments.*.unit_price' => 'nullable|numeric|min:0',
             'new_logs.*.new_equipments.*.notes' => 'nullable|string',
-
-            // New Payments
             'new_payments.*.amount' => 'nullable|numeric|min:0',
-            'new_payments.*.paid_at' => 'nullable|string', // Parsed
+            'new_payments.*.paid_at' => 'nullable|string',
             'new_payments.*.note' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->route('maintenances.create')
-                        ->withErrors($validator)
-                        ->withInput();
+            return redirect()->route('maintenances.create')->withErrors($validator)->withInput();
         }
 
         DB::beginTransaction();
@@ -140,18 +139,16 @@ class MaintenanceController extends Controller
             ]);
             $maintenanceData['start_date'] = Jalalian::fromFormat('Y/m/d', $request->start_date)->toCarbon();
             $maintenanceData['is_active'] = $request->has('is_active');
-            $maintenanceData['paid_amount'] = 0; // Initial
-            $maintenanceData['completed_count'] = 0; // Initial
+            $maintenanceData['paid_amount'] = 0;
+            $maintenanceData['completed_count'] = 0;
 
             $maintenance = Maintenance::create($maintenanceData);
 
-            // Handle New Logs and their Equipment
             if ($request->has('new_logs')) {
                 foreach ($request->input('new_logs', []) as $logData) {
                     if (empty($logData['performed_by']) || empty($logData['performed_at'])) {
                         continue;
                     }
-
                     $maintenanceLog = $maintenance->logs()->create([
                         'performed_by' => $logData['performed_by'],
                         'performed_at' => Jalalian::fromFormat('Y/m/d H:i', $logData['performed_at'])->toCarbon(),
@@ -180,10 +177,9 @@ class MaintenanceController extends Controller
                         }
                     }
                 }
-                $maintenance->save(); // Save updates to completed_count and last_completed_at
+                $maintenance->save();
             }
 
-            // Handle New Payments
             $totalPaid = 0;
             if ($request->has('new_payments')) {
                 foreach ($request->input('new_payments', []) as $paymentData) {
@@ -201,7 +197,6 @@ class MaintenanceController extends Controller
                 $maintenance->increment('paid_amount', $totalPaid);
             }
 
-
             DB::commit();
             return redirect()->route('maintenances.index')->with('success', 'سرویس دوره‌ای با موفقیت ایجاد شد.');
         } catch (\Exception $e) {
@@ -211,19 +206,16 @@ class MaintenanceController extends Controller
         }
     }
 
-
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit($id)
     {
         $maintenance = Maintenance::with([
-            'customer.addresses',
-            'user', // assigned_to
-            'logs.user', // performed_by for each log
-            'logs.equipments.equipment', // equipment details for each log's equipment
-            'payments'
+            'customer.addresses', 'user', 'logs.user', 'logs.equipments.equipment', 'payments'
         ])->findOrFail($id);
+
+        // Authorization: Staff can only edit their own
+        if (Auth::check() && Auth::user()->isStaff() && $maintenance->assigned_to !== Auth::id()) {
+            return redirect()->route('maintenances.index')->withErrors(['general' => 'شما اجازه ویرایش این سرویس را ندارید.']);
+        }
 
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $users = User::whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name']);
@@ -231,12 +223,14 @@ class MaintenanceController extends Controller
         $availableEquipments = Equipment::orderBy('name')->get();
         $currentJalaliDateTime = Jalalian::now()->format('Y/m/d H:i');
         $currentJalaliDate = Jalalian::now()->format('Y/m/d');
-
         $selectedCustomerAddresses = $maintenance->customer ? $maintenance->customer->addresses : collect();
 
         $maintenancesList = collect();
         if (Route::currentRouteName() == 'maintenances.index' || !view()->exists('maintenances.edit')) {
             $query = Maintenance::with(['customer', 'address', 'user']);
+            if (Auth::check() && Auth::user()->isStaff()) {
+                $query->where('assigned_to', Auth::id());
+            }
             $maintenancesList = $query->orderBy('start_date', 'desc')->paginate(10);
         }
 
@@ -254,12 +248,14 @@ class MaintenanceController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, $id)
     {
         $maintenance = Maintenance::findOrFail($id);
+
+        // Authorization: Staff can only update their own
+        if (Auth::check() && Auth::user()->isStaff() && $maintenance->assigned_to !== Auth::id()) {
+            return redirect()->route('maintenances.index')->withErrors(['general' => 'شما اجازه بروزرسانی این سرویس را ندارید.']);
+        }
 
         $validator = Validator::make($request->all(), [
             'customer_address_id' => 'required|exists:customer_addresses,id,customer_id,' . $maintenance->customer_id,
@@ -269,53 +265,41 @@ class MaintenanceController extends Controller
             'monthly_price' => 'required|numeric|min:0',
             'total_price' => 'required|numeric|min:0',
             'is_active' => 'nullable|boolean',
-
-            // Existing Logs
             'logs.*.id' => 'required_with:logs.*.performed_by|exists:maintenances_logs,id,maintenance_service_id,'.$id,
             'logs.*.performed_by' => 'nullable|exists:users,id',
             'logs.*.performed_at' => 'nullable|string',
             'logs.*.sms_sent' => 'nullable|boolean',
             'logs.*.note' => 'nullable|string',
             'logs.*._remove' => 'nullable|boolean',
-            // Existing Equipment within Existing Logs
-            'logs.*.equipments.*.id' => 'required_with:logs.*.equipments.*.quantity|exists:maintenances_equipments,id', // Further validation for log_id needed if complex
+            'logs.*.equipments.*.id' => 'required_with:logs.*.equipments.*.quantity|exists:maintenances_equipments,id',
             'logs.*.equipments.*.quantity' => 'required_with:logs.*.equipments.*.id|integer|min:0',
             'logs.*.equipments.*.unit_price' => 'nullable|numeric|min:0',
             'logs.*.equipments.*.notes' => 'nullable|string',
             'logs.*.equipments.*._remove' => 'nullable|boolean',
-            // New Equipment within Existing Logs
             'logs.*.new_equipments.*.equipment_id' => 'nullable|required_with:logs.*.new_equipments.*.quantity|exists:equipments,id',
             'logs.*.new_equipments.*.quantity' => 'nullable|required_with:logs.*.new_equipments.*.equipment_id|integer|min:1',
             'logs.*.new_equipments.*.unit_price' => 'nullable|numeric|min:0',
             'logs.*.new_equipments.*.notes' => 'nullable|string',
-
-            // New Logs
             'new_logs.*.performed_by' => 'nullable|required_with:new_logs.*.performed_at|exists:users,id',
             'new_logs.*.performed_at' => 'nullable|required_with:new_logs.*.performed_by|string',
             'new_logs.*.sms_sent' => 'nullable|boolean',
             'new_logs.*.note' => 'nullable|string',
-            // New Equipment within New Logs
             'new_logs.*.new_equipments.*.equipment_id' => 'nullable|required_with:new_logs.*.new_equipments.*.quantity|exists:equipments,id',
             'new_logs.*.new_equipments.*.quantity' => 'nullable|required_with:new_logs.*.new_equipments.*.equipment_id|integer|min:1',
             'new_logs.*.new_equipments.*.unit_price' => 'nullable|numeric|min:0',
             'new_logs.*.new_equipments.*.notes' => 'nullable|string',
-
-            // Existing Payments
             'payments.*.id' => 'required_with:payments.*.amount|exists:maintenances_payments,id,maintenance_service_id,'.$id,
             'payments.*.amount' => 'required_with:payments.*.id|numeric|min:0',
             'payments.*.paid_at' => 'required_with:payments.*.id|string',
             'payments.*.note' => 'nullable|string',
             'payments.*._remove' => 'nullable|boolean',
-            // New Payments
             'new_payments.*.amount' => 'nullable|numeric|min:0',
             'new_payments.*.paid_at' => 'nullable|string',
             'new_payments.*.note' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->route('maintenances.edit', $maintenance->id)
-                        ->withErrors($validator)
-                        ->withInput();
+            return redirect()->route('maintenances.edit', $maintenance->id)->withErrors($validator)->withInput();
         }
 
         DB::beginTransaction();
@@ -324,6 +308,11 @@ class MaintenanceController extends Controller
                 'customer_address_id', 'assigned_to',
                 'duration_in_months', 'monthly_price', 'total_price'
             ]);
+            // If user is staff, they cannot change the assigned_to field to someone else
+            if (Auth::user()->isStaff() && isset($maintenanceData['assigned_to']) && $maintenanceData['assigned_to'] != Auth::id()) {
+                $maintenanceData['assigned_to'] = Auth::id();
+            }
+
             $maintenanceData['start_date'] = Jalalian::fromFormat('Y/m/d', $request->start_date)->toCarbon();
             $maintenanceData['is_active'] = $request->has('is_active');
 
@@ -334,9 +323,7 @@ class MaintenanceController extends Controller
 
             // Handle Existing Logs
             if ($request->has('logs')) {
-                foreach ($request->input('logs') as $logId => $logData) {
-                    // The key $logId here is the index from the form, not necessarily the DB ID.
-                    // The actual DB ID is $logData['id']
+                foreach ($request->input('logs') as $logId_form => $logData) { // $logId_form is the array index from form
                     if (empty($logData['id'])) {
                         continue;
                     }
@@ -348,16 +335,14 @@ class MaintenanceController extends Controller
                     }
 
                     if (isset($logData['_remove'])) {
-                        // Restore stock for equipment in this log
                         foreach ($maintenanceLog->equipments as $logEquipment) {
-                            $equipment = Equipment::find($logEquipment->equipment_id);
-                            if ($equipment) {
-                                $equipment->increment('stock_quantity', $logEquipment->quantity);
+                            if ($logEquipment->equipment) {
+                                $logEquipment->equipment->increment('stock_quantity', $logEquipment->quantity);
                             }
                         }
                         $maintenanceLog->equipments()->delete();
                         $maintenanceLog->delete();
-                        continue; // Skip to next log
+                        continue;
                     }
 
                     $maintenanceLog->update([
@@ -373,7 +358,7 @@ class MaintenanceController extends Controller
 
                     // Handle Equipment within this Existing Log
                     if (isset($logData['equipments'])) {
-                        foreach ($logData['equipments'] as $logEqId => $logEqData) {
+                        foreach ($logData['equipments'] as $logEqId_form => $logEqData) {
                             if (empty($logEqData['id'])) {
                                 continue;
                             }
@@ -407,7 +392,6 @@ class MaintenanceController extends Controller
                             }
                         }
                     }
-                    // Handle New Equipment within this Existing Log
                     if (isset($logData['new_equipments'])) {
                         foreach ($logData['new_equipments'] as $newEqData) {
                             if (!empty($newEqData['equipment_id']) && !empty($newEqData['quantity'])) {
@@ -429,13 +413,12 @@ class MaintenanceController extends Controller
                 }
             }
 
-            // Handle New Logs and their Equipment
+            // Handle New Logs
             if ($request->has('new_logs')) {
                 foreach ($request->input('new_logs', []) as $logData) {
                     if (empty($logData['performed_by']) || empty($logData['performed_at'])) {
                         continue;
                     }
-
                     $maintenanceLog = $maintenance->logs()->create([
                         'performed_by' => $logData['performed_by'],
                         'performed_at' => Jalalian::fromFormat('Y/m/d H:i', $logData['performed_at'])->toCarbon(),
@@ -446,7 +429,6 @@ class MaintenanceController extends Controller
                     if (!$latestCompletionDate || $maintenanceLog->performed_at->gt($latestCompletionDate)) {
                         $latestCompletionDate = $maintenanceLog->performed_at;
                     }
-
                     if (isset($logData['new_equipments'])) {
                         foreach ($logData['new_equipments'] as $equipmentData) {
                             if (!empty($equipmentData['equipment_id']) && !empty($equipmentData['quantity'])) {
@@ -467,14 +449,12 @@ class MaintenanceController extends Controller
                     }
                 }
             }
-            // Update maintenance summary fields
             $maintenance->completed_count = $completedCount;
             $maintenance->last_completed_at = $latestCompletionDate;
             $maintenance->save();
 
-
             // Handle Payments
-            $totalPaid = $maintenance->payments()->sum('amount'); // Start with existing sum before modifications
+            $currentTotalPaid = $maintenance->payments()->sum('amount');
             if ($request->has('payments')) {
                 foreach ($request->input('payments') as $paymentData) {
                     if (empty($paymentData['id'])) {
@@ -486,35 +466,32 @@ class MaintenanceController extends Controller
                     }
 
                     if (isset($paymentData['_remove'])) {
-                        $totalPaid -= $maintenancePayment->amount; // Subtract removed amount
+                        $currentTotalPaid -= $maintenancePayment->amount;
                         $maintenancePayment->delete();
                     } else {
-                        $totalPaid -= $maintenancePayment->amount; // Subtract old amount
+                        $currentTotalPaid -= $maintenancePayment->amount; // Subtract old
                         $maintenancePayment->update([
-                            // 'title' => $paymentData['title'], // No title in migration for maintenance_payments
                             'amount' => $paymentData['amount'],
                             'paid_at' => $paymentData['paid_at'] ? Jalalian::fromFormat('Y/m/d H:i', $paymentData['paid_at'])->toCarbon() : null,
                             'note' => $paymentData['note'] ?? $maintenancePayment->note,
                         ]);
-                        $totalPaid += $maintenancePayment->amount; // Add new amount
+                        $currentTotalPaid += $maintenancePayment->amount; // Add new
                     }
                 }
             }
             if ($request->has('new_payments')) {
                 foreach ($request->input('new_payments', []) as $paymentData) {
-                    if (isset($paymentData['amount']) && $paymentData['amount'] > 0) { // Ensure amount is set and positive
+                    if (isset($paymentData['amount']) && $paymentData['amount'] > 0) {
                         $payment = $maintenance->payments()->create([
-                            // 'title' => $paymentData['title'], // No title
                             'amount' => $paymentData['amount'],
                             'paid_at' => $paymentData['paid_at'] ? Jalalian::fromFormat('Y/m/d H:i', $paymentData['paid_at'])->toCarbon() : now(),
                             'note' => $paymentData['note'] ?? null,
                         ]);
-                        $totalPaid += $payment->amount;
+                        $currentTotalPaid += $payment->amount;
                     }
                 }
             }
-            $maintenance->update(['paid_amount' => $totalPaid]);
-
+            $maintenance->update(['paid_amount' => $currentTotalPaid]);
 
             DB::commit();
             return redirect()->route('maintenances.index')->with('success', 'سرویس دوره‌ای با موفقیت بروزرسانی شد.');
@@ -525,27 +502,28 @@ class MaintenanceController extends Controller
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
+        $maintenance = Maintenance::with('logs.equipments', 'payments')->findOrFail($id);
+
+        // Authorization: Only admins can delete
+        if (Auth::check() && !Auth::user()->isAdmin()) {
+            return redirect()->route('maintenances.index')->withErrors(['general' => 'شما اجازه حذف این سرویس را ندارید.']);
+        }
+
         DB::beginTransaction();
         try {
-            $maintenance = Maintenance::with('logs.equipments', 'payments')->findOrFail($id);
-
             foreach ($maintenance->logs as $log) {
                 foreach ($log->equipments as $logEquipment) {
-                    $equipment = Equipment::find($logEquipment->equipment_id);
-                    if ($equipment) {
-                        $equipment->increment('stock_quantity', $logEquipment->quantity);
+                    if ($logEquipment->equipment) {
+                        $logEquipment->equipment->increment('stock_quantity', $logEquipment->quantity);
                     }
                 }
-                $log->equipments()->delete(); // Delete equipment entries for the log
+                $log->equipments()->delete();
             }
-            $maintenance->logs()->delete(); // Delete all logs for the maintenance
-            $maintenance->payments()->delete(); // Delete all payments for the maintenance
-            $maintenance->delete(); // Delete the maintenance itself
+            $maintenance->logs()->delete();
+            $maintenance->payments()->delete();
+            $maintenance->delete();
 
             DB::commit();
             return redirect()->route('maintenances.index')->with('success', 'سرویس دوره‌ای و اطلاعات مرتبط با موفقیت حذف شد.');
