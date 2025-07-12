@@ -4,77 +4,133 @@ namespace App\Http\Controllers;
 
 use App\Models\Equipment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class EquipmentController extends Controller
 {
+    /**
+     * Display a listing of the resource.
+     */
     public function index(Request $request)
     {
         $query = Equipment::query();
 
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $searchTerm = $request->search;
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('name', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('brand', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('description', 'like', '%' . $searchTerm . '%');
+            });
         }
 
-        if ($request->sort === 'alphabet') {
-            $query->orderBy('name');
-        } else {
-            $query->latest();
+        $sortField = $request->input('sort_field', 'created_at');
+        $sortDirection = $request->input('sort_direction', 'desc');
+        $validSortFields = ['name', 'brand', 'price', 'stock_quantity', 'created_at'];
+
+        if (!in_array($sortField, $validSortFields)) {
+            $sortField = 'created_at';
         }
+        if (!in_array($sortDirection, ['asc', 'desc'])) {
+            $sortDirection = 'desc';
+        }
+        $query->orderBy($sortField, $sortDirection);
 
         $equipments = $query->paginate(10);
 
         return view('equipments', [
             'equipments' => $equipments,
             'editMode' => false,
-            'equipment' => null,
+            'equipment' => new Equipment(),
         ]);
     }
 
-    public function edit($id)
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
     {
-        $equipment = Equipment::findOrFail($id);
-        $equipments = Equipment::paginate(10);
-
         return view('equipments', [
-            'editMode' => true,
-            'equipment' => $equipment,
-            'equipments' => $equipments,
+            'equipments' => Equipment::latest()->paginate(10),
+            'editMode' => false,
+            'equipment' => new Equipment(),
         ]);
     }
 
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'price' => 'nullable|numeric',
-            'stock_quantity' => 'nullable|integer',
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255', // <-- MODIFIED: 'unique' rule removed
+            'price' => 'required|numeric|min:0',
+            'stock_quantity' => 'required|integer|min:0',
+            'brand' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
         ]);
 
-        Equipment::create($request->only(['name', 'price', 'stock_quantity']));
+        if ($validator->fails()) {
+            return redirect()->route('equipments.index')
+                        ->withErrors($validator)
+                        ->withInput();
+        }
 
-        return redirect()->route('equipments.index');
+        Equipment::create($validator->validated());
+
+        return redirect()->route('equipments.index')->with('success', 'تجهیزات با موفقیت اضافه شد.');
     }
 
-    public function update(Request $request, $id)
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Equipment $equipment)
     {
-        $equipment = Equipment::findOrFail($id);
+        return view('equipments', [
+            'equipments' => Equipment::latest()->paginate(10),
+            'editMode' => true,
+            'equipment' => $equipment,
+        ]);
+    }
 
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'price' => 'nullable|numeric',
-            'stock_quantity' => 'nullable|integer',
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, Equipment $equipment)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:255'], // <-- MODIFIED: 'unique' rule removed
+            'price' => 'required|numeric|min:0',
+            'stock_quantity' => 'required|integer|min:0',
+            'brand' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
         ]);
 
-        $equipment->update($request->only(['name', 'price', 'stock_quantity']));
+        if ($validator->fails()) {
+            return redirect()->route('equipments.edit', $equipment->id)
+                        ->withErrors($validator)
+                        ->withInput();
+        }
 
-        return redirect()->route('equipments.index');
+        $equipment->update($validator->validated());
+
+        return redirect()->route('equipments.index')->with('success', 'تجهیزات با موفقیت بروزرسانی شد.');
     }
 
-    public function destroy($id)
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Equipment $equipment)
     {
-        $equipment = Equipment::findOrFail($id);
+        // Add logic here to check if the equipment is used in any contracts, repairs, etc.
+        // before deleting, if you want to prevent deletion of used equipment.
+        // For example:
+        // if ($equipment->contracts()->exists() || $equipment->repairs()->exists()) {
+        //     return back()->withErrors(['general' => 'این تجهیز در قراردادها یا تعمیرات استفاده شده و قابل حذف نیست.']);
+        // }
+
         $equipment->delete();
-
-        return redirect()->route('equipments.index')->with('success', 'Equipment deleted successfully.');
+        return redirect()->route('equipments.index')->with('success', 'تجهیزات با موفقیت حذف شد.');
     }
 }

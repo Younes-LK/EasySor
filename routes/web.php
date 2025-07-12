@@ -33,6 +33,8 @@ Route::middleware([IsAdmin::class])->group(function () {
     // روت‌های مخصوص ادمین‌ها
     Route::resource('users', UserController::class);
 
+    Route::get('contracts/{contract}/print', [ContractController::class, 'print'])->name('contracts.print');
+
     Route::resource('contracts', ContractController::class);
 
 

@@ -10,13 +10,12 @@ return new class () extends Migration {
      */
     public function up(): void
     {
-        Schema::create('equipments', function (Blueprint $table) {
+        Schema::create('contract_logs', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('brand')->nullable();
-            $table->string('description')->nullable();
-            $table->integer('price');
-            $table->integer('stock_quantity');
+            $table->foreignId('contract_id')->constrained('contracts')->onDelete('cascade');
+            $table->foreignId('performed_by')->constrained('users')->onDelete('cascade');
+            $table->text('description')->nullable();
+            $table->timestamp('performed_at')->useCurrent();
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class () extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('equipments');
+        Schema::dropIfExists('contract_logs');
     }
 };

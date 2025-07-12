@@ -12,5 +12,7 @@ class Equipment extends Model
         'name',
         'price',
         'stock_quantity',
+         'brand',
+        'description',
     ];
 }

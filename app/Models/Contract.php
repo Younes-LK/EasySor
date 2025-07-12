@@ -57,6 +57,11 @@ class Contract extends Model
         return $this->hasMany(ContractPayment::class);
     }
 
+    public function logs(): HasMany // <-- ADDED THIS RELATIONSHIP
+    {
+        return $this->hasMany(ContractLog::class);
+    }
+
     public function getFormattedCreatedAtAttribute(): ?string
     {
         // $this->created_at will be a Carbon instance if $casts is set correctly

@@ -1,4 +1,5 @@
 @extends('layouts.base')
+
 @section('sidebar')
     @include('layouts.sidebar')
 @endsection
@@ -7,103 +8,155 @@
     <div class="container mx-auto px-4 py-6">
         <h2 class="text-xl font-bold mb-4 dark:text-white">مدیریت تجهیزات</h2>
 
-
+        @if (session('success'))
+            <div class="mb-4 p-3 bg-green-100 dark:bg-green-700 text-green-700 dark:text-green-100 rounded-md">
+                {{ session('success') }}
+            </div>
+        @endif
+        @if ($errors->any())
+            <div class="mb-4 p-4 bg-red-100 dark:bg-red-700 text-red-700 dark:text-red-100 rounded-md">
+                <strong class="font-bold">خطا!</strong>
+                <ul>
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
         <!-- Add/Edit Form -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-4 dark:text-white border-b pb-2 dark:border-gray-700">
+                {{ $editMode ? 'ویرایش تجهیزات' : 'افزودن تجهیزات جدید' }}
+            </h3>
             <form method="POST"
-                action="{{ $editMode ? route('equipments.update', $equipment->id) : route('equipments.store') }}"
-                id="equipment-form" novalidate>
+                action="{{ $editMode ? route('equipments.update', $equipment->id) : route('equipments.store') }}">
                 @csrf
                 @if ($editMode)
                     @method('PUT')
                 @endif
 
-                <input type="hidden" name="id" value="{{ old('id', $equipment->id ?? '') }}">
-
-                <div class="grid md:grid-cols-3 gap-4">
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Name -->
                     <div>
-                        <label class="block text-sm font-medium dark:text-white" for="name">نام تجهیز</label>
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">نام
+                            تجهیزات</label>
                         <input type="text" id="name" name="name"
-                            value="{{ old('name', $equipment->name ?? '') }}"
-                            class="mt-1 block w-full rounded border border-gray-300 dark:bg-gray-700 dark:text-white">
-                        <p class="text-red-600 text-sm mt-1 hidden" id="error-name"></p>
+                            value="{{ old('name', $equipment->name ?? '') }}" required
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
 
+                    <!-- Brand -->
                     <div>
-                        <label class="block text-sm font-medium dark:text-white" for="price">قیمت</label>
-                        <input type="number" step="0.01" min="0" id="price" name="price"
-                            value="{{ old('price', $equipment->price ?? '') }}"
-                            class="mt-1 block w-full rounded border border-gray-300 dark:bg-gray-700 dark:text-white">
-                        <p class="text-red-600 text-sm mt-1 hidden" id="error-price"></p>
+                        <label for="brand"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-200">برند</label>
+                        <input type="text" id="brand" name="brand"
+                            value="{{ old('brand', $equipment->brand ?? '') }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
 
+                    <!-- Price -->
                     <div>
-                        <label class="block text-sm font-medium dark:text-white" for="stock_quantity">موجودی انبار</label>
-                        <input type="number" min="0" id="stock_quantity" name="stock_quantity"
-                            value="{{ old('stock_quantity', $equipment->stock_quantity ?? '') }}"
-                            class="mt-1 block w-full rounded border border-gray-300 dark:bg-gray-700 dark:text-white">
-                        <p class="text-red-600 text-sm mt-1 hidden" id="error-stock_quantity"></p>
+                        <label for="price" class="block text-sm font-medium text-gray-700 dark:text-gray-200">قیمت
+                            (تومان)</label>
+                        <input type="number" id="price" name="price"
+                            value="{{ old('price', $equipment->price ?? '') }}" required min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+
+                    <!-- Stock Quantity -->
+                    <div>
+                        <label for="stock_quantity" class="block text-sm font-medium text-gray-700 dark:text-gray-200">تعداد
+                            در انبار</label>
+                        <input type="number" id="stock_quantity" name="stock_quantity"
+                            value="{{ old('stock_quantity', $equipment->stock_quantity ?? '') }}" required min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+
+                    <!-- Description -->
+                    <div class="md:col-span-2 lg:col-span-4">
+                        <label for="description"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-200">توضیحات</label>
+                        <textarea id="description" name="description" rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('description', $equipment->description ?? '') }}</textarea>
                     </div>
                 </div>
 
-                <div class="mt-4">
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded" id="submit-btn">
-                        {{ $editMode ? 'ویرایش تجهیز' : 'ثبت تجهیز' }}
+                <div class="mt-6 flex justify-end">
+                    @if ($editMode)
+                        <a href="{{ route('equipments.index') }}"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+                            لغو
+                        </a>
+                    @endif
+                    <button type="submit"
+                        class="ms-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        {{ $editMode ? 'بروزرسانی' : 'ذخیره' }}
                     </button>
                 </div>
-
-                <p id="general-error" class="text-red-600 mt-3 hidden"></p>
             </form>
         </div>
 
-        <!-- Search -->
+        <!-- Search Form -->
         <div class="mb-4">
             <form method="GET" action="{{ route('equipments.index') }}"
-                class="flex items-center space-x-2 rtl:space-x-reverse">
-                <input type="search" name="search" placeholder="جستجو بر اساس نام تجهیز" value="{{ request('search') }}"
-                    class="w-full max-w-xs rounded border border-gray-300 px-3 py-2 dark:bg-gray-700 dark:text-white" />
-                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded">جستجو</button>
+                class="flex flex-col sm:flex-row gap-2 items-center">
+                <input type="text" name="search" value="{{ request('search') }}"
+                    placeholder="جستجو بر اساس نام، برند، توضیحات..."
+                    class="w-full sm:flex-grow rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                <button type="submit"
+                    class="w-full sm:w-auto px-4 py-2 bg-indigo-500 text-white rounded-md shadow-sm hover:bg-indigo-600">جستجو</button>
                 @if (request('search'))
-                    <a href="{{ route('equipments.index') }}" class="text-red-600 hover:underline px-3">پاک کردن</a>
+                    <a href="{{ route('equipments.index') }}"
+                        class="w-full sm:w-auto text-center mt-2 sm:mt-0 sm:ml-2 text-red-600 hover:underline px-3 py-2 rounded-md border border-red-500 hover:bg-red-50 dark:hover:bg-red-900">
+                        پاک کردن
+                    </a>
                 @endif
             </form>
         </div>
 
+
         <!-- Equipment List -->
         <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
             <table class="w-full text-sm text-right text-gray-500 dark:text-gray-300">
-                <thead class="text-xs uppercase bg-gray-200 dark:bg-gray-700 dark:text-white">
+                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400 dark:text-white">
                     <tr>
-                        <th class="p-3">نام تجهیز</th>
+                        <th class="p-3">نام تجهیزات</th>
+                        <th class="p-3">برند</th>
+                        <th class="p-3">توضیحات</th>
                         <th class="p-3">قیمت</th>
                         <th class="p-3">موجودی انبار</th>
                         <th class="p-3">عملیات</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($equipments as $eq)
-                        <tr class="border-b dark:border-gray-600">
-                            <td class="p-3">{{ $eq->name }}</td>
-                            <td class="p-3">{{ number_format($eq->price) }}</td>
-                            <td class="p-3">{{ $eq->stock_quantity }}</td>
-                            <td class="p-3">
-                                <a href="{{ route('equipments.edit', $eq->id) }}"
-                                    class="text-blue-600 hover:text-blue-800">ویرایش</a>
-                                <form action="{{ route('equipments.destroy', $eq->id) }}" method="POST"
-                                    class="inline-block" onsubmit="return confirm('آیا مطمئن هستید؟');">
+                    @forelse ($equipments as $item)
+                        <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <td class="p-3 font-semibold">{{ $item->name }}</td>
+                            <td class="p-3">{{ $item->brand ?? '-' }}</td>
+                            <td class="p-3 text-gray-600 dark:text-gray-400">
+                                {{ \Illuminate\Support\Str::limit($item->description, 50, '...') }}</td>
+                            <td class="p-3">{{ number_format($item->price) }} تومان</td>
+                            <td class="p-3">{{ $item->stock_quantity }}</td>
+                            <td class="p-3 whitespace-nowrap">
+                                <a href="{{ route('equipments.edit', $item->id) }}"
+                                    class="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 px-2">ویرایش</a>
+                                <form action="{{ route('equipments.destroy', $item->id) }}" method="POST"
+                                    class="inline-block" onsubmit="return confirm('آیا از حذف این تجهیزات مطمئن هستید؟');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:text-red-800 ml-2">حذف</button>
+                                    <button type="submit"
+                                        class="text-red-600 hover:text-red-800 dark:hover:text-red-400 px-2">حذف</button>
                                 </form>
                             </td>
                         </tr>
-                    @endforeach
-                    @if ($equipments->isEmpty())
+                    @empty
                         <tr>
-                            <td colspan="4" class="p-4 text-center text-gray-500 dark:text-gray-400">موردی یافت نشد.</td>
+                            <td colspan="6" class="p-4 text-center text-gray-500 dark:text-gray-400">
+                                تجهیزاتی یافت نشد.
+                            </td>
                         </tr>
-                    @endif
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -113,82 +166,4 @@
             {{ $equipments->withQueryString()->links() }}
         </div>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('equipment-form');
-            const generalError = document.getElementById('general-error');
-
-            function clearErrors() {
-                generalError.classList.add('hidden');
-                generalError.textContent = '';
-
-                const errorMessages = form.querySelectorAll('p[id^="error-"]');
-                errorMessages.forEach(el => {
-                    el.classList.add('hidden');
-                    el.textContent = '';
-                });
-
-                const errorFields = form.querySelectorAll('.border-red-600');
-                errorFields.forEach(el => el.classList.remove('border-red-600'));
-            }
-
-            function setError(field, message) {
-                const errorId = 'error-' + field.id;
-                let errorEl = document.getElementById(errorId);
-                if (errorEl) {
-                    errorEl.textContent = message;
-                    errorEl.classList.remove('hidden');
-                }
-                field.classList.add('border-red-600');
-            }
-
-            function validateForm() {
-                clearErrors();
-
-                let valid = true;
-
-                // Validate name
-                const name = form.querySelector('#name');
-                if (!name.value.trim()) {
-                    setError(name, 'نام تجهیز الزامی است.');
-                    valid = false;
-                }
-
-                // Validate price
-                const price = form.querySelector('#price');
-                if (!price.value.trim()) {
-                    setError(price, 'قیمت الزامی است.');
-                    valid = false;
-                } else if (isNaN(price.value) || Number(price.value) < 0) {
-                    setError(price, 'قیمت باید عددی مثبت باشد.');
-                    valid = false;
-                }
-
-                // Validate stock_quantity
-                const stock = form.querySelector('#stock_quantity');
-                if (!stock.value.trim()) {
-                    setError(stock, 'موجودی انبار الزامی است.');
-                    valid = false;
-                } else if (!Number.isInteger(Number(stock.value)) || Number(stock.value) < 0) {
-                    setError(stock, 'موجودی انبار باید عدد صحیح غیر منفی باشد.');
-                    valid = false;
-                }
-
-                return valid;
-            }
-
-            form.addEventListener('submit', function(e) {
-                if (!validateForm()) {
-                    e.preventDefault();
-                    generalError.classList.remove('hidden');
-                    generalError.textContent = 'لطفاً خطاهای فرم را اصلاح کنید.';
-                    window.scrollTo({
-                        top: 0,
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
-    </script>
 @endsection
