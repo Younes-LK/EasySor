@@ -1,8 +1,7 @@
 {
-	"laravel": {
-		"phpVersion": "8.2.12"
+  "laravel": {
+	"phpVersion": "8.2"
 	},
-	
   "app": "easysor",
   "port": 3000,
   "build": {
