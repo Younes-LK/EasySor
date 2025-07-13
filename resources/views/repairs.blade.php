@@ -389,10 +389,10 @@
                         class="w-full flex flex-col md:flex-row md:items-center gap-2">
                         <input type="text" name="search" value="{{ request('search') }}"
                             placeholder="جستجو در عنوان، توضیحات یا نام مشتری..."
-                            class="w-full md:flex-grow rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                            class="w-full md:flex-grow rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                         <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             <select name="sort_field"
-                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="performed_date"
                                     {{ request('sort_field', 'performed_date') == 'performed_date' ? 'selected' : '' }}>
                                     تاریخ انجام</option>
@@ -402,7 +402,7 @@
                                     تاریخ ثبت</option>
                             </select>
                             <select name="sort_direction"
-                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="desc"
                                     {{ request('sort_direction', 'desc') == 'desc' ? 'selected' : '' }}>نزولی</option>
                                 <option value="asc" {{ request('sort_direction') == 'asc' ? 'selected' : '' }}>صعودی

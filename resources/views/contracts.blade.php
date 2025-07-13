@@ -348,34 +348,39 @@
         {{-- Contracts List Section --}}
         @if (isset($contractsList) && !$editMode)
             <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-                <form method="GET" action="{{ route('contracts.index') }}" class="flex gap-2 items-center">
+                {{-- CORRECTED: Added responsive flex classes --}}
+                <form method="GET" action="{{ route('contracts.index') }}"
+                    class="w-full flex flex-col md:flex-row md:items-center gap-2">
                     <input type="text" name="search" value="{{ request('search') }}"
                         placeholder="جستجو در توضیحات یا نام مشتری..."
-                        class="rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 w-64">
-                    <select name="sort_field"
-                        class="rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                        <option value="created_at"
-                            {{ request('sort_field', 'created_at') == 'created_at' ? 'selected' : '' }}>تاریخ ایجاد
-                        </option>
-                        <option value="total_price" {{ request('sort_field') == 'total_price' ? 'selected' : '' }}>مبلغ کل
-                        </option>
-                        <option value="status" {{ request('sort_field') == 'status' ? 'selected' : '' }}>وضعیت</option>
-                    </select>
-                    <select name="sort_direction"
-                        class="rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                        <option value="desc" {{ request('sort_direction', 'desc') == 'desc' ? 'selected' : '' }}>نزولی
-                        </option>
-                        <option value="asc" {{ request('sort_direction') == 'asc' ? 'selected' : '' }}>صعودی</option>
-                    </select>
+                        class="w-full md:flex-grow rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                    <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                        <select name="sort_field"
+                            class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                            <option value="created_at"
+                                {{ request('sort_field', 'created_at') == 'created_at' ? 'selected' : '' }}>تاریخ ایجاد
+                            </option>
+                            <option value="total_price" {{ request('sort_field') == 'total_price' ? 'selected' : '' }}>
+                                مبلغ کل</option>
+                            <option value="status" {{ request('sort_field') == 'status' ? 'selected' : '' }}>وضعیت
+                            </option>
+                        </select>
+                        <select name="sort_direction"
+                            class="w-full sm:w-auto rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white py-2 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                            <option value="desc" {{ request('sort_direction', 'desc') == 'desc' ? 'selected' : '' }}>
+                                نزولی</option>
+                            <option value="asc" {{ request('sort_direction') == 'asc' ? 'selected' : '' }}>صعودی
+                            </option>
+                        </select>
+                    </div>
                     <button type="submit"
-                        class="px-4 py-2 bg-indigo-500 text-white rounded shadow-sm hover:bg-indigo-600">اعمال</button>
+                        class="w-full md:w-auto px-4 py-2 bg-indigo-500 text-white rounded shadow-sm hover:bg-indigo-600">اعمال</button>
                     @if (request('search') || request('sort_field') || request('sort_direction'))
-                        <a href="{{ route('contracts.index') }}" class="text-red-600 hover:underline px-3 py-1">پاک کردن
-                            فیلتر</a>
+                        <a href="{{ route('contracts.index') }}"
+                            class="w-full md:w-auto text-center mt-2 md:mt-0 md:ms-2 text-red-600 hover:underline px-3 py-2 rounded-md border border-red-500 hover:bg-red-50 dark:hover:bg-red-900">پاک
+                            کردن فیلتر</a>
                     @endif
                 </form>
-                <a href="{{ route('contracts.create') }}"
-                    class="px-4 py-2 bg-green-500 text-white rounded shadow-sm hover:bg-green-600">ایجاد قرارداد جدید</a>
             </div>
 
             <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
