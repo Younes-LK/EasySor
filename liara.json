@@ -1,0 +1,17 @@
+{
+	"laravel": {
+		"phpVersion": "8.2.12"
+	},
+	
+  "app": "easysor",
+  "port": 3000,
+  "build": {
+    "location": "iran"
+  },
+  "disks": [
+    {
+      "name": "segal",
+      "mountTo": "path/to/folder"
+    }
+  ]
+}
