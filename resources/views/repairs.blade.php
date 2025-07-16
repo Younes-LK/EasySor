@@ -162,16 +162,18 @@
                         </div>
 
                         {{-- Cost --}}
-                        <div>
-                            <label class="block text-sm font-medium dark:text-white" for="repair_cost">هزینه (تومان)</label>
-                            <input type="number" id="repair_cost" name="cost"
-                                value="{{ old('cost', $repair->cost ?? '0') }}" min="0"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                            @error('cost')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-
+                        @if (Auth::user()->isAdmin())
+                            <div>
+                                <label class="block text-sm font-medium dark:text-white" for="repair_cost">هزینه
+                                    (تومان)</label>
+                                <input type="number" id="repair_cost" name="cost"
+                                    value="{{ old('cost', $repair->cost ?? '0') }}" min="0"
+                                    class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                @error('cost')
+                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        @endif
                         {{-- Performed Date --}}
                         <div>
                             <label class="block text-sm font-medium dark:text-white" for="repair_performed_date">تاریخ
@@ -231,7 +233,7 @@
                     </div>
 
                     {{-- Equipments Section --}}
-                    <div class="mt-8">
+                    <div class="mt-8" id="repair-equipments-section-wrapper"> {{-- Add a wrapper ID --}}
                         <h3 class="text-lg font-semibold mb-3 dark:text-white border-b pb-2 dark:border-gray-700">تجهیزات
                             مصرفی</h3>
                         <div id="repair-equipments-container">
@@ -246,13 +248,15 @@
                                             (موجودی انبار:
                                             {{ $repairEquipment->equipment ? $repairEquipment->equipment->stock_quantity + $repairEquipment->quantity : 'N/A' }})
                                         </p>
-                                        <div class="grid md:grid-cols-4 gap-3 mt-2">
+
+                                        {{-- ✅ MODIFIED: Grid changed to 5 columns and classes added --}}
+                                        <div class="grid md:grid-cols-5 gap-3 mt-2">
                                             <div>
                                                 <label class="block text-xs dark:text-gray-300">تعداد</label>
                                                 <input type="number" name="equipments[{{ $index }}][quantity]"
                                                     value="{{ old("equipments.{$index}.quantity", $repairEquipment->quantity) }}"
                                                     min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    class="quantity-input mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                                     {{ !$canEditThisRepair ? 'readonly' : '' }}>
                                             </div>
                                             <div>
@@ -260,8 +264,13 @@
                                                 <input type="number" name="equipments[{{ $index }}][unit_price]"
                                                     value="{{ old("equipments.{$index}.unit_price", $repairEquipment->unit_price) }}"
                                                     min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    class="unit-price-input mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                                     {{ !$canEditThisRepair ? 'readonly' : '' }}>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs dark:text-gray-300">قیمت کل (تومان)</label>
+                                                <input type="text" readonly
+                                                    class="total-price-display mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
                                             </div>
                                             <div class="md:col-span-2">
                                                 <label class="block text-xs dark:text-gray-300">یادداشت</label>
@@ -290,7 +299,6 @@
                                 افزودن تجهیز جدید</button>
                         @endif
                     </div>
-
                     {{-- Payments Section --}}
                     <div class="mt-8">
                         <h3 class="text-lg font-semibold mb-3 dark:text-white border-b pb-2 dark:border-gray-700">پرداخت‌ها
@@ -396,8 +404,10 @@
                                 <option value="performed_date"
                                     {{ request('sort_field', 'performed_date') == 'performed_date' ? 'selected' : '' }}>
                                     تاریخ انجام</option>
-                                <option value="cost" {{ request('sort_field') == 'cost' ? 'selected' : '' }}>هزینه
-                                </option>
+                                @if (Auth::user()->isAdmin())
+                                    <option value="cost" {{ request('sort_field') == 'cost' ? 'selected' : '' }}>هزینه
+                                    </option>
+                                @endif
                                 <option value="created_at" {{ request('sort_field') == 'created_at' ? 'selected' : '' }}>
                                     تاریخ ثبت</option>
                             </select>
@@ -433,7 +443,9 @@
                             <th class="p-3">مشتری</th>
                             <th class="p-3">عنوان</th>
                             <th class="p-3">شرح مختصر</th>
-                            <th class="p-3">هزینه (تومان)</th>
+                            @if (Auth::user()->isAdmin())
+                                <th class="p-3">هزینه (تومان)</th>
+                            @endif
                             <th class="p-3">تکنسین</th>
                             <th class="p-3">تاریخ انجام</th>
                             <th class="p-3">تاریخ ثبت</th>
@@ -446,7 +458,9 @@
                                 <td class="p-3">{{ $repairItem->customer->name ?? 'N/A' }}</td>
                                 <td class="p-3">{{ $repairItem->title }}</td>
                                 <td class="p-3">{{ Str::words($repairItem->description ?? '', 5, '...') }}</td>
-                                <td class="p-3">{{ number_format($repairItem->cost) }}</td>
+                                @if (Auth::user()->isAdmin())
+                                    <td class="p-3">{{ number_format($repairItem->cost) }}</td>
+                                @endif
                                 <td class="p-3">{{ $repairItem->user->name ?? 'مشخص نشده' }}</td>
                                 <td class="p-3">{{ $repairItem->formatted_performed_date ?: 'N/A' }}</td>
                                 <td class="p-3">{{ $repairItem->formatted_created_at ?: 'N/A' }}</td>
@@ -492,19 +506,12 @@
     </div>
 
     <script>
-        // Ensure currentJalaliDateTimeForJS_Repairs is defined
-        // const currentJalaliDateTimeForJS_Repairs = @json($currentJalaliDateTime ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d H:i'));
-        // const currentJalaliDateForJS_Repairs = @json($currentJalaliDate ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d'));
-    </script>
-
-    <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- Customer Address Logic (Your existing code) ---
             const repairCustomerSelect = document.getElementById('repair_customer_id');
             const repairAddressSelect = document.getElementById('repair_customer_address_id');
             const repairCustomersWithAddressesData = typeof customersWithAddresses !== 'undefined' ?
                 customersWithAddresses : @json($customersWithAddresses ?? []);
-            const repairAvailableEquipmentsData = typeof availableEquipments !== 'undefined' ? availableEquipments :
-                @json($availableEquipments ?? []);
 
             function populateRepairAddresses(customerId, selectedAddressId = null) {
                 if (!repairAddressSelect) return;
@@ -544,6 +551,43 @@
                 });
             }
 
+            // --- START: EQUIPMENT PRICE CALCULATION LOGIC (INTEGRATED) ---
+            const repairAvailableEquipmentsData = typeof availableEquipments !== 'undefined' ? availableEquipments :
+                @json($availableEquipments ?? []);
+            const equipmentsWrapper = document.getElementById('repair-equipments-section-wrapper');
+
+            function updateTotalPrice(rowElement) {
+                const quantityInput = rowElement.querySelector('.quantity-input');
+                const unitPriceInput = rowElement.querySelector('.unit-price-input');
+                const totalPriceDisplay = rowElement.querySelector('.total-price-display');
+
+                if (!quantityInput || !unitPriceInput || !totalPriceDisplay) return;
+
+                const quantity = parseFloat(quantityInput.value) || 0;
+                const unitPrice = parseFloat(unitPriceInput.value) || 0;
+                const total = quantity * unitPrice;
+
+                totalPriceDisplay.value = total.toLocaleString('fa-IR');
+            }
+
+            if (equipmentsWrapper) {
+                // Calculate totals for existing items on page load
+                equipmentsWrapper.querySelectorAll('.equipment-item').forEach(updateTotalPrice);
+
+                // Listen for live typing on any quantity or price input
+                equipmentsWrapper.addEventListener('input', function(event) {
+                    if (event.target.classList.contains('quantity-input') || event.target.classList
+                        .contains('unit-price-input')) {
+                        const row = event.target.closest('.equipment-item, .new-equipment-item');
+                        if (row) {
+                            updateTotalPrice(row);
+                        }
+                    }
+                });
+            }
+            // --- END: EQUIPMENT PRICE CALCULATION LOGIC ---
+
+            // --- Dynamic Equipment Section (Your code, modified) ---
             const addRepairEquipmentBtn = document.getElementById('add-repair-equipment-btn');
             const newRepairEquipmentsPlaceholder = document.getElementById('new-repair-equipments-placeholder');
             let newRepairEquipmentDynamicIndex =
@@ -560,43 +604,51 @@
                         equipmentOptions +=
                             `<option value="${eq.id}" data-price="${eq.price}" data-stock="${eq.stock_quantity}">${eq.name} (موجودی: ${eq.stock_quantity} - قیمت: ${eq.price})</option>`;
                     });
+
+                    // ✅ MODIFIED: Grid changed to 5 cols and Total Price field added
                     div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="text-md font-semibold dark:text-indigo-300">تجهیز جدید #${newRepairEquipmentDynamicIndex + 1}</h4>
-                        <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn">&times; حذف</button>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-md font-semibold dark:text-indigo-300">تجهیز جدید #${newRepairEquipmentDynamicIndex + 1}</h4>
+                    <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn">&times; حذف</button>
+                </div>
+                <div class="grid md:grid-cols-5 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs dark:text-gray-300">انتخاب تجهیز</label>
+                        <select name="new_equipments[${newRepairEquipmentDynamicIndex}][equipment_id]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white new-equipment-select">
+                            ${equipmentOptions}
+                        </select>
                     </div>
-                    <div class="grid md:grid-cols-4 gap-3">
-                        <div class="md:col-span-2">
-                            <label class="block text-xs dark:text-gray-300">انتخاب تجهیز</label>
-                            <select name="new_equipments[${newRepairEquipmentDynamicIndex}][equipment_id]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white new-equipment-select">
-                                ${equipmentOptions}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs dark:text-gray-300">تعداد</label>
-                            <input type="number" name="new_equipments[${newRepairEquipmentDynamicIndex}][quantity]" value="1" min="1" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-xs dark:text-gray-300">قیمت واحد</label>
-                            <input type="number" name="new_equipments[${newRepairEquipmentDynamicIndex}][unit_price]" value="0" min="0" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white new-equipment-price">
-                        </div>
-                        <div class="md:col-span-4">
-                            <label class="block text-xs dark:text-gray-300">یادداشت</label>
-                            <input type="text" name="new_equipments[${newRepairEquipmentDynamicIndex}][notes]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                        </div>
+                    <div>
+                        <label class="block text-xs dark:text-gray-300">تعداد</label>
+                        <input type="number" name="new_equipments[${newRepairEquipmentDynamicIndex}][quantity]" value="1" min="1" class="quantity-input mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
                     </div>
+                    <div>
+                        <label class="block text-xs dark:text-gray-300">قیمت واحد</label>
+                        <input type="number" name="new_equipments[${newRepairEquipmentDynamicIndex}][unit_price]" value="0" min="0" class="unit-price-input mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white new-equipment-price">
+                    </div>
+                    <div>
+                        <label class="block text-xs dark:text-gray-300">قیمت کل</label>
+                        <input type="text" readonly class="total-price-display mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                    </div>
+                    <div class="md:col-span-5">
+                        <label class="block text-xs dark:text-gray-300">یادداشت</label>
+                        <input type="text" name="new_equipments[${newRepairEquipmentDynamicIndex}][notes]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
+                    </div>
+                </div>
                 `;
                     newRepairEquipmentsPlaceholder.appendChild(div);
                     newRepairEquipmentDynamicIndex++;
                 });
 
+                // ✅ MODIFIED: Listener updated to trigger calculation
                 newRepairEquipmentsPlaceholder.addEventListener('change', function(event) {
                     if (event.target.classList.contains('new-equipment-select')) {
                         const selectedOption = event.target.options[event.target.selectedIndex];
-                        const priceInput = event.target.closest('.new-equipment-item').querySelector(
-                            '.new-equipment-price');
+                        const row = event.target.closest('.new-equipment-item');
+                        const priceInput = row.querySelector('.new-equipment-price');
                         if (selectedOption && priceInput) {
                             priceInput.value = selectedOption.dataset.price || 0;
+                            updateTotalPrice(row); // Trigger calculation
                         }
                     }
                 });

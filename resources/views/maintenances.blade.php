@@ -54,11 +54,13 @@
             </div>
         @endif
 
+        {{-- This script block makes PHP data available to the main JS block below --}}
         <script>
             const currentJalaliDateTimeForJS_Maintenances = @json($currentJalaliDateTime ?? Jalalian::now()->format('Y/m/d H:i'));
             const currentJalaliDateForJS_Maintenances = @json($currentJalaliDate ?? Jalalian::now()->format('Y/m/d'));
             const availableEquipmentsData_Maintenances = @json($availableEquipments ?? []);
             const usersData_Maintenances = @json($users ?? []);
+            const customersWithAddressesData_Maintenances = @json($customersWithAddresses ?? []);
         </script>
 
         @if ($showForm || ($editMode && $canEditThis))
@@ -107,6 +109,7 @@
                                 class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                                 {{ $editMode && Auth::user()->isStaff() ? 'disabled' : '' }}>
                                 <option value="">ابتدا مشتری را انتخاب کنید</option>
+                                {{-- Options will be populated by JS or pre-filled by PHP if editing --}}
                                 @php
                                     $currentMaintenanceCustomerId = old(
                                         'customer_id',
@@ -195,30 +198,32 @@
                         </div>
 
                         {{-- Monthly Price --}}
-                        <div>
-                            <label class="block text-sm font-medium dark:text-white" for="maintenance_monthly_price">هزینه
-                                ماهانه (تومان)</label>
-                            <input type="number" id="maintenance_monthly_price" name="monthly_price"
-                                value="{{ old('monthly_price', $maintenance->monthly_price ?? '0') }}" min="0"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
-                            @error('monthly_price')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <div class="md:col-span-1">
-                            <label class="block text-sm font-medium dark:text-white" for="maintenance_total_price">مبلغ کل
-                                قرارداد (تومان)</label>
-                            <input type="number" id="maintenance_total_price" name="total_price"
-                                value="{{ old('total_price', $maintenance->total_price ?? '0') }}" min="0"
-                                class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
-                            @error('total_price')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
                         @if (Auth::user()->isAdmin())
+                            <div>
+                                <label class="block text-sm font-medium dark:text-white"
+                                    for="maintenance_monthly_price">هزینه
+                                    ماهانه (تومان)</label>
+                                <input type="number" id="maintenance_monthly_price" name="monthly_price"
+                                    value="{{ old('monthly_price', $maintenance->monthly_price ?? '0') }}" min="0"
+                                    class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
+                                @error('monthly_price')
+                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div class="md:col-span-1">
+                                <label class="block text-sm font-medium dark:text-white" for="maintenance_total_price">مبلغ
+                                    کل
+                                    قرارداد (تومان)</label>
+                                <input type="number" id="maintenance_total_price" name="total_price"
+                                    value="{{ old('total_price', $maintenance->total_price ?? '0') }}" min="0"
+                                    class="mt-1 block w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
+                                @error('total_price')
+                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
                             <div class="md:col-span-2 flex items-end pb-2">
                                 <button type="button" id="calculate_total_price_btn"
                                     class="text-xs px-3 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md">محاسبه
@@ -378,6 +383,7 @@
                                                     @endforeach
                                                 @endif
                                             </div>
+                                            {{-- This placeholder is for adding NEW equipment to an EXISTING log --}}
                                             <div id="new-log-{{ $logIndex }}-equipments-placeholder"></div>
                                             @if (Auth::user()->isAdmin() || (Auth::user()->isStaff() && $log->performed_by == Auth::id()))
                                                 <button type="button"
@@ -402,60 +408,60 @@
                     </div>
 
                     {{-- Maintenance Payments Section --}}
-                    <div class="mt-8">
-                        <h3 class="text-lg font-semibold mb-3 dark:text-white border-b pb-2 dark:border-gray-700">
-                            پرداخت‌های سرویس دوره‌ای</h3>
-                        <div id="maintenance-payments-container">
-                            @if ($editMode && $maintenance->payments && $maintenance->payments->count() > 0)
-                                @foreach ($maintenance->payments as $index => $payment)
-                                    <div class="p-3 mb-2 border dark:border-gray-700 rounded-md payment-item"
-                                        data-index="{{ $index }}">
-                                        <input type="hidden" name="payments[{{ $index }}][id]"
-                                            value="{{ $payment->id }}">
-                                        <div class="grid md:grid-cols-3 gap-3">
-                                            <div class="md:col-span-1">
-                                                <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
-                                                <input type="number" name="payments[{{ $index }}][amount]"
-                                                    value="{{ old("payments.{$index}.amount", $payment->amount) }}"
-                                                    min="0"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
+                    @if (Auth::user()->isAdmin())
+                        <div class="mt-8">
+                            <h3 class="text-lg font-semibold mb-3 dark:text-white border-b pb-2 dark:border-gray-700">
+                                پرداخت‌های سرویس دوره‌ای</h3>
+                            <div id="maintenance-payments-container">
+                                @if ($editMode && $maintenance->payments && $maintenance->payments->count() > 0)
+                                    @foreach ($maintenance->payments as $index => $payment)
+                                        <div class="p-3 mb-2 border dark:border-gray-700 rounded-md payment-item"
+                                            data-index="{{ $index }}">
+                                            <input type="hidden" name="payments[{{ $index }}][id]"
+                                                value="{{ $payment->id }}">
+                                            <div class="grid md:grid-cols-3 gap-3">
+                                                <div class="md:col-span-1">
+                                                    <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
+                                                    <input type="number" name="payments[{{ $index }}][amount]"
+                                                        value="{{ old("payments.{$index}.amount", $payment->amount) }}"
+                                                        min="0"
+                                                        class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                        {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
+                                                    <input type="text" name="payments[{{ $index }}][paid_at]"
+                                                        value="{{ old("payments.{$index}.paid_at", $payment->formatted_paid_at) }}"
+                                                        placeholder="مثلا: 1403/01/15 10:30"
+                                                        class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white persian-date-time-picker"
+                                                        {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
+                                                </div>
+                                                <div class="md:col-span-3">
+                                                    <label class="block text-xs dark:text-gray-300">یادداشت</label>
+                                                    <input type="text" name="payments[{{ $index }}][note]"
+                                                        value="{{ old("payments.{$index}.note", $payment->note) }}"
+                                                        class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                        {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
-                                                <input type="text" name="payments[{{ $index }}][paid_at]"
-                                                    value="{{ old("payments.{$index}.paid_at", $payment->formatted_paid_at) }}"
-                                                    placeholder="مثلا: 1403/01/15 10:30"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white persian-date-time-picker"
-                                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
-                                            </div>
-                                            <div class="md:col-span-3">
-                                                <label class="block text-xs dark:text-gray-300">یادداشت</label>
-                                                <input type="text" name="payments[{{ $index }}][note]"
-                                                    value="{{ old("payments.{$index}.note", $payment->note) }}"
-                                                    class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                                    {{ $editMode && Auth::user()->isStaff() ? 'readonly' : '' }}>
-                                            </div>
+                                            @if (Auth::user()->isAdmin())
+                                                <label class="flex items-center mt-2 text-sm">
+                                                    <input type="checkbox" name="payments[{{ $index }}][_remove]"
+                                                        value="1"
+                                                        class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
+                                                    <span class="ms-2 text-red-600 dark:text-red-400">حذف این پرداخت</span>
+                                                </label>
+                                            @endif
                                         </div>
-                                        @if (Auth::user()->isAdmin())
-                                            <label class="flex items-center mt-2 text-sm">
-                                                <input type="checkbox" name="payments[{{ $index }}][_remove]"
-                                                    value="1"
-                                                    class="rounded border-gray-300 dark:border-gray-600 text-red-600 shadow-sm focus:ring-red-500">
-                                                <span class="ms-2 text-red-600 dark:text-red-400">حذف این پرداخت</span>
-                                            </label>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            @endif
-                        </div>
-                        <div id="new-maintenance-payments-placeholder"></div>
-                        @if (Auth::user()->isAdmin())
+                                    @endforeach
+                                @endif
+                            </div>
+                            <div id="new-maintenance-payments-placeholder"></div>
                             <button type="button" id="add-maintenance-payment-btn"
                                 class="mt-2 text-sm px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-md">+ افزودن
                                 پرداخت جدید</button>
-                        @endif
-                    </div>
+                        </div>
+                    @endif
 
                     <div class="mt-8 pt-6 border-t dark:border-gray-700">
                         <button type="submit"
@@ -509,20 +515,21 @@
                                 کردن فیلتر</a>
                         @endif
                     </form>
-                    {{-- "Create New" button is removed for staff, form is above for admins --}}
                 </div>
             </div>
 
             <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
                 <table class="w-full text-sm text-right text-gray-500 dark:text-gray-300">
-                    <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400 dark:text-white">
+                    <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700 dark:text-white">
                         <tr>
                             <th class="p-3">مشتری</th>
                             <th class="p-3">آدرس</th>
                             <th class="p-3">تاریخ شروع</th>
                             <th class="p-3">مدت (ماه)</th>
-                            <th class="p-3">هزینه ماهانه</th>
-                            <th class="p-3">مبلغ کل</th>
+                            @if (Auth::user()->isAdmin())
+                                <th class="p-3">هزینه ماهانه</th>
+                                <th class="p-3">مبلغ کل</th>
+                            @endif
                             <th class="p-3">تکمیل شده</th>
                             <th class="p-3">آخرین سرویس</th>
                             <th class="p-3">وضعیت</th>
@@ -537,8 +544,10 @@
                                 <td class="p-3">{{ $item->address->address ?? 'N/A' }}</td>
                                 <td class="p-3">{{ $item->formatted_start_date ?: 'N/A' }}</td>
                                 <td class="p-3">{{ $item->duration_in_months }}</td>
-                                <td class="p-3">{{ number_format($item->monthly_price) }}</td>
-                                <td class="p-3">{{ number_format($item->total_price) }}</td>
+                                @if (Auth::user()->isAdmin())
+                                    <td class="p-3">{{ number_format($item->monthly_price) }}</td>
+                                    <td class="p-3">{{ number_format($item->total_price) }}</td>
+                                @endif
                                 <td class="p-3">{{ $item->completed_count }} / {{ $item->duration_in_months }}</td>
                                 <td class="p-3">{{ $item->formatted_last_completed_at ?: '-' }}</td>
                                 <td class="p-3">
@@ -587,34 +596,14 @@
     </div>
 
     <script>
-        // Ensure currentJalaliDateTimeForJS_Maintenances and currentJalaliDateForJS_Maintenances are defined
-        // const currentJalaliDateTimeForJS_Maintenances = @json($currentJalaliDateTime ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d H:i'));
-        // const currentJalaliDateForJS_Maintenances = @json($currentJalaliDate ?? \Morilog\Jalali\Jalalian::now()->format('Y/m/d'));
-        // const availableEquipmentsData_Maintenances = @json($availableEquipments ?? []);
-        // const usersData_Maintenances = @json($users ?? []);
-    </script>
-    <script>
-        // This script should be largely similar to the one in repairs.blade.php,
-        // but with IDs and variable names prefixed/suffixed for maintenances
-        // to avoid conflicts if scripts are ever combined or run on the same page.
-        // For brevity, I'll outline the key parts that need to be adapted.
-        // The full JS for dynamic rows (logs, equipment in logs, payments) would be extensive.
-
         document.addEventListener('DOMContentLoaded', () => {
             const maintenanceCustomerSelect = document.getElementById('maintenance_customer_id');
             const maintenanceAddressSelect = document.getElementById('maintenance_customer_address_id');
-            const maintenanceCustomersWithAddressesData = typeof customersWithAddresses !== 'undefined' ?
-                customersWithAddresses : @json($customersWithAddresses ?? []);
-            const maintenanceAvailableEquipmentsData = typeof availableEquipmentsData_Maintenances !== 'undefined' ?
-                availableEquipmentsData_Maintenances : [];
-            const maintenanceUsersData = typeof usersData_Maintenances !== 'undefined' ? usersData_Maintenances :
-        [];
-
 
             function populateMaintenanceAddresses(customerId, selectedAddressId = null) {
                 if (!maintenanceAddressSelect) return;
                 maintenanceAddressSelect.innerHTML = '<option value="">درحال بارگذاری آدرس‌ها...</option>';
-                const selectedCustomer = maintenanceCustomersWithAddressesData.find(c => String(c.id) === String(
+                const selectedCustomer = customersWithAddressesData_Maintenances.find(c => String(c.id) === String(
                     customerId));
 
                 if (selectedCustomer && selectedCustomer.addresses && selectedCustomer.addresses.length > 0) {
@@ -634,14 +623,11 @@
             }
 
             if (maintenanceCustomerSelect) {
+                // If a customer is already selected on page load (e.g., validation error), populate its addresses.
                 if (maintenanceCustomerSelect.value) {
                     const preselectedAddressId =
-                        "{{ old('customer_address_id', ($editMode ?? false) && isset($maintenance) ? $maintenance->customer_address_id : '') }}";
-                    if (maintenanceAddressSelect && (!maintenanceAddressSelect.value || maintenanceAddressSelect
-                            .options.length <= 1 || (maintenanceAddressSelect.value && preselectedAddressId &&
-                                String(maintenanceAddressSelect.value) !== String(preselectedAddressId)))) {
-                        populateMaintenanceAddresses(maintenanceCustomerSelect.value, preselectedAddressId);
-                    }
+                        "{{ old('customer_address_id', $editMode && isset($maintenance) ? $maintenance->customer_address_id : '') }}";
+                    populateMaintenanceAddresses(maintenanceCustomerSelect.value, preselectedAddressId);
                 }
                 maintenanceCustomerSelect.addEventListener('change', (e) => {
                     populateMaintenanceAddresses(e.target.value);
@@ -665,12 +651,11 @@
             if (durationInput) durationInput.addEventListener('input', calculateMaintenanceTotalPrice);
             if (monthlyPriceInput) monthlyPriceInput.addEventListener('input', calculateMaintenanceTotalPrice);
 
-
             // --- Dynamic Maintenance Logs ---
             const addMaintenanceLogBtn = document.getElementById('add-maintenance-log-btn');
             const newMaintenanceLogsPlaceholder = document.getElementById('new-maintenance-logs-placeholder');
             let newMaintenanceLogDynamicIndex =
-                {{ ($editMode ?? false) && isset($maintenance) && $maintenance->logs ? $maintenance->logs->count() : 0 }};
+                {{ $editMode && isset($maintenance) && $maintenance->logs ? $maintenance->logs->count() : 0 }};
 
             if (addMaintenanceLogBtn && newMaintenanceLogsPlaceholder) {
                 addMaintenanceLogBtn.addEventListener('click', () => {
@@ -679,199 +664,138 @@
                     logDiv.classList.add('p-4', 'mb-3', 'border', 'dark:border-gray-600', 'rounded-lg',
                         'maintenance-log-item', 'bg-gray-50', 'dark:bg-gray-700/50');
                     logDiv.dataset.logIndex = logIndex;
-
                     let userOptions = '<option value="">انتخاب تکنسین</option>';
-                    maintenanceUsersData.forEach(user => { // Use maintenance specific user data
+                    usersData_Maintenances.forEach(user => {
                         userOptions +=
                             `<option value="${user.id}" ${user.id == {{ Auth::id() }} ? 'selected' : ''}>${user.name}</option>`;
                     });
-                    const defaultPerformedAt = (typeof currentJalaliDateTimeForJS_Maintenances !==
-                            'undefined' && currentJalaliDateTimeForJS_Maintenances) ?
-                        currentJalaliDateTimeForJS_Maintenances : '';
-
+                    const defaultPerformedAt = currentJalaliDateTimeForJS_Maintenances || '';
                     logDiv.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <h4 class="text-md font-semibold dark:text-indigo-300">گزارش سرویس جدید #${logIndex + 1}</h4>
-                    <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="log">&times; حذف گزارش</button>
-                </div>
-                <div class="grid md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-xs dark:text-gray-300">انجام شده توسط</label>
-                        <select name="new_logs[${logIndex}][performed_by]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                            ${userOptions}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs dark:text-gray-300">تاریخ انجام</label>
-                        <input type="text" name="new_logs[${logIndex}][performed_at]" value="${defaultPerformedAt}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
-                    </div>
-                    <div class="flex items-end">
-                        <label class="flex items-center text-sm dark:text-white">
-                            <input type="checkbox" name="new_logs[${logIndex}][sms_sent]" value="1" class="rounded">
-                            <span class="ms-2">پیامک ارسال شد</span>
-                        </label>
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-xs dark:text-gray-300">یادداشت گزارش</label>
-                        <textarea name="new_logs[${logIndex}][note]" rows="2" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"></textarea>
-                    </div>
-                </div>
-                <div class="mt-3 pt-3 border-t dark:border-gray-500">
-                    <h5 class="text-sm font-semibold mb-1 dark:text-gray-200">تجهیزات مصرفی در این سرویس:</h5>
-                    <div id="new-log-${logIndex}-equipments-placeholder"></div>
-                    <button type="button" class="add-log-equipment-btn mt-1 text-xs px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-md" data-log-index="${logIndex}">+ افزودن تجهیز به این گزارش</button>
-                </div>
-            `;
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-md font-semibold dark:text-indigo-300">گزارش سرویس جدید #${logIndex + 1}</h4>
+                            <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="log">&times; حذف گزارش</button>
+                        </div>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div><label class="block text-xs dark:text-gray-300">انجام شده توسط</label><select name="new_logs[${logIndex}][performed_by]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">${userOptions}</select></div>
+                            <div><label class="block text-xs dark:text-gray-300">تاریخ انجام</label><input type="text" name="new_logs[${logIndex}][performed_at]" value="${defaultPerformedAt}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker"></div>
+                            <div class="flex items-end"><label class="flex items-center text-sm dark:text-white"><input type="checkbox" name="new_logs[${logIndex}][sms_sent]" value="1" class="rounded"><span class="ms-2">پیامک ارسال شد</span></label></div>
+                            <div class="md:col-span-3"><label class="block text-xs dark:text-gray-300">یادداشت گزارش</label><textarea name="new_logs[${logIndex}][note]" rows="2" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"></textarea></div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t dark:border-gray-500">
+                            <h5 class="text-sm font-semibold mb-1 dark:text-gray-200">تجهیزات مصرفی در این سرویس:</h5>
+                            <div id="new-log-${logIndex}-equipments-placeholder"></div>
+                            <button type="button" class="add-log-equipment-btn mt-1 text-xs px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-md" data-log-index="${logIndex}">+ افزودن تجهیز به این گزارش</button>
+                        </div>`;
                     newMaintenanceLogsPlaceholder.appendChild(logDiv);
                     initializeNewPersianDatePickers(logDiv);
                     newMaintenanceLogDynamicIndex++;
                 });
             }
 
-            // Event delegation for adding equipment to logs
-            const maintenanceLogsContainer = document.getElementById('maintenance-logs-container');
-            if (maintenanceLogsContainer) {
-                maintenanceLogsContainer.addEventListener('click', function(event) {
-                    if (event.target.classList.contains('add-log-equipment-btn')) {
-                        const logIndex = event.target.dataset.logIndex;
-                        const logEquipmentsPlaceholder = document.getElementById(
-                            `new-log-${logIndex}-equipments-placeholder`) || document.getElementById(
-                            `log-${logIndex}-equipments-container`);
-
-                        const parentLogItem = event.target.closest('.maintenance-log-item');
-                        const isNewLog = parentLogItem.parentElement.id ===
-                            'new-maintenance-logs-placeholder';
-                        const namePrefix = isNewLog ? `new_logs[${logIndex}]` : `logs[${logIndex}]`;
-
-                        const equipCount = logEquipmentsPlaceholder.querySelectorAll(
-                            '.log-equipment-item, .new-log-equipment-item').length;
-
-                        const equipDiv = document.createElement('div');
-                        equipDiv.classList.add('p-2', 'mb-2', 'border', 'dark:border-gray-500',
-                            'rounded-md', 'bg-gray-100', 'dark:bg-gray-600/50', 'new-log-equipment-item'
-                        );
-
-                        let equipmentOptions = '<option value="">انتخاب تجهیز</option>';
-                        maintenanceAvailableEquipmentsData.forEach(
-                            eq => { // Use maintenance specific equipment data
-                                equipmentOptions +=
-                                    `<option value="${eq.id}" data-price="${eq.price}" data-stock="${eq.stock_quantity}">${eq.name} (موجودی: ${eq.stock_quantity} - قیمت: ${eq.price})</option>`;
-                            });
-
-                        equipDiv.innerHTML = `
-                    <div class="flex justify-between items-center mb-1">
-                         <h6 class="text-xs font-semibold dark:text-indigo-200">تجهیز جدید</h6>
-                        <button type="button" class="text-red-400 hover:text-red-600 remove-new-item-btn" data-type="equipment">&times; حذف</button>
-                    </div>
-                    <div class="grid md:grid-cols-4 gap-2 mt-1">
-                        <div class="md:col-span-2">
-                            <label class="block text-xs dark:text-gray-400">انتخاب تجهیز</label>
-                            <select name="${namePrefix}[new_equipments][${equipCount}][equipment_id]" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white new-equipment-select">
-                                ${equipmentOptions}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs dark:text-gray-400">تعداد</label>
-                            <input type="number" name="${namePrefix}[new_equipments][${equipCount}][quantity]" value="1" min="1" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white">
-                        </div>
-                        <div>
-                            <label class="block text-xs dark:text-gray-400">قیمت واحد</label>
-                            <input type="number" name="${namePrefix}[new_equipments][${equipCount}][unit_price]" value="0" min="0" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white new-equipment-price">
-                        </div>
-                        <div class="md:col-span-4">
-                            <label class="block text-xs dark:text-gray-400">یادداشت تجهیز</label>
-                            <input type="text" name="${namePrefix}[new_equipments][${equipCount}][notes]" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white">
-                        </div>
-                    </div>
-                `;
-                        logEquipmentsPlaceholder.appendChild(equipDiv);
-                    }
-                });
-                // Listener for new log equipment select change (delegated)
-                maintenanceLogsContainer.addEventListener('change', function(event) {
-                    if (event.target.classList.contains('new-equipment-select')) {
-                        const selectedOption = event.target.options[event.target.selectedIndex];
-                        const priceInput = event.target.closest(
-                            '.new-log-equipment-item, .log-equipment-item').querySelector(
-                            '.new-equipment-price');
-                        if (selectedOption && priceInput) {
-                            priceInput.value = selectedOption.dataset.price || 0;
-                        }
-                    }
-                });
-            }
-
-
             // --- Dynamic Maintenance Payments ---
             const addMaintenancePaymentBtn = document.getElementById('add-maintenance-payment-btn');
             const newMaintenancePaymentsPlaceholder = document.getElementById(
                 'new-maintenance-payments-placeholder');
-            let newMaintenancePaymentDynamicIndex =
-                {{ ($editMode ?? false) && isset($maintenance) && $maintenance->payments ? $maintenance->payments->count() : 0 }};
-
             if (addMaintenancePaymentBtn && newMaintenancePaymentsPlaceholder) {
+                let newMaintenancePaymentDynamicIndex =
+                    {{ $editMode && isset($maintenance) && $maintenance->payments ? $maintenance->payments->count() : 0 }};
                 addMaintenancePaymentBtn.addEventListener('click', () => {
                     const div = document.createElement('div');
                     div.classList.add('p-3', 'mb-2', 'border', 'dark:border-gray-600', 'rounded-md',
                         'bg-gray-50', 'dark:bg-gray-700', 'new-payment-item');
                     div.dataset.index = newMaintenancePaymentDynamicIndex;
-                    const defaultPaidAtValue = (typeof currentJalaliDateTimeForJS_Maintenances !==
-                            'undefined' && currentJalaliDateTimeForJS_Maintenances) ?
-                        currentJalaliDateTimeForJS_Maintenances : '';
-
+                    const defaultPaidAtValue = currentJalaliDateTimeForJS_Maintenances || '';
                     div.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <h4 class="text-md font-semibold dark:text-indigo-300">پرداخت جدید #${newMaintenancePaymentDynamicIndex + 1}</h4>
-                    <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="payment">&times; حذف</button>
-                </div>
-                <div class="grid md:grid-cols-3 gap-3">
-                    <div class="md:col-span-1">
-                        <label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label>
-                        <input type="number" name="new_payments[${newMaintenancePaymentDynamicIndex}][amount]" value="0" min="0" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                    </div>
-                    <div>
-                        <label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label>
-                        <input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][paid_at]" value="${defaultPaidAtValue}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker">
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="block text-xs dark:text-gray-300">یادداشت</label>
-                        <input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][note]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white">
-                    </div>
-                </div>
-            `;
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-md font-semibold dark:text-indigo-300">پرداخت جدید #${newMaintenancePaymentDynamicIndex + 1}</h4>
+                            <button type="button" class="text-red-500 hover:text-red-700 remove-new-item-btn" data-type="payment">&times; حذف</button>
+                        </div>
+                        <div class="grid md:grid-cols-3 gap-3">
+                            <div class="md:col-span-1"><label class="block text-xs dark:text-gray-300">مبلغ (تومان)</label><input type="number" name="new_payments[${newMaintenancePaymentDynamicIndex}][amount]" value="0" min="0" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"></div>
+                            <div><label class="block text-xs dark:text-gray-300">تاریخ پرداخت</label><input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][paid_at]" value="${defaultPaidAtValue}" placeholder="مثلا: 1403/01/15 10:30" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white persian-date-time-picker"></div>
+                            <div class="md:col-span-3"><label class="block text-xs dark:text-gray-300">یادداشت</label><input type="text" name="new_payments[${newMaintenancePaymentDynamicIndex}][note]" class="mt-1 block w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white"></div>
+                        </div>`;
                     newMaintenancePaymentsPlaceholder.appendChild(div);
                     initializeNewPersianDatePickers(div);
                     newMaintenancePaymentDynamicIndex++;
                 });
             }
 
-            // Generic remove button for new items (logs, equipment within logs, payments)
+            // --- FIXED: Delegated Event Listeners for Dynamic Content ---
             document.addEventListener('click', function(event) {
+                // Handle adding equipment to a log (both existing and new logs)
+                if (event.target.classList.contains('add-log-equipment-btn')) {
+                    const logIndex = event.target.dataset.logIndex;
+                    const parentLogItem = event.target.closest('.maintenance-log-item');
+                    if (!parentLogItem) return;
+
+                    const logEquipmentsPlaceholder = parentLogItem.querySelector(
+                        `#new-log-${logIndex}-equipments-placeholder`) || parentLogItem.querySelector(
+                        `#log-${logIndex}-equipments-container`);
+                    if (!logEquipmentsPlaceholder) return;
+
+                    const isNewLog = parentLogItem.parentElement.id === 'new-maintenance-logs-placeholder';
+                    const namePrefix = isNewLog ? `new_logs[${logIndex}]` : `logs[${logIndex}]`;
+
+                    const equipCount = logEquipmentsPlaceholder.querySelectorAll(
+                        '.log-equipment-item, .new-log-equipment-item').length;
+                    const equipDiv = document.createElement('div');
+                    equipDiv.classList.add('p-2', 'mb-2', 'border', 'dark:border-gray-500', 'rounded-md',
+                        'bg-gray-100', 'dark:bg-gray-600/50', 'new-log-equipment-item');
+
+                    let equipmentOptions = '<option value="">انتخاب تجهیز</option>';
+                    availableEquipmentsData_Maintenances.forEach(eq => {
+                        equipmentOptions +=
+                            `<option value="${eq.id}" data-price="${eq.price}" data-stock="${eq.stock_quantity}">${eq.name} (موجودی: ${eq.stock_quantity})</option>`;
+                    });
+
+                    equipDiv.innerHTML = `
+                        <div class="flex justify-between items-center mb-1">
+                            <h6 class="text-xs font-semibold dark:text-indigo-200">تجهیز جدید</h6>
+                            <button type="button" class="text-red-400 hover:text-red-600 remove-new-item-btn" data-type="equipment">&times; حذف</button>
+                        </div>
+                        <div class="grid md:grid-cols-4 gap-2 mt-1">
+                            <div class="md:col-span-2"><label class="block text-xs dark:text-gray-400">انتخاب تجهیز</label><select name="${namePrefix}[new_equipments][${equipCount}][equipment_id]" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white new-equipment-select">${equipmentOptions}</select></div>
+                            <div><label class="block text-xs dark:text-gray-400">تعداد</label><input type="number" name="${namePrefix}[new_equipments][${equipCount}][quantity]" value="1" min="1" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white"></div>
+                            <div><label class="block text-xs dark:text-gray-400">قیمت واحد</label><input type="number" name="${namePrefix}[new_equipments][${equipCount}][unit_price]" value="0" min="0" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white new-equipment-price"></div>
+                            <div class="md:col-span-4"><label class="block text-xs dark:text-gray-400">یادداشت تجهیز</label><input type="text" name="${namePrefix}[new_equipments][${equipCount}][notes]" class="mt-1 block w-full text-xs rounded border-gray-300 dark:border-gray-500 dark:bg-gray-500 dark:text-white"></div>
+                        </div>`;
+                    logEquipmentsPlaceholder.appendChild(equipDiv);
+                }
+
+                // Handle removing any new item (log, equipment, payment)
                 if (event.target.classList.contains('remove-new-item-btn')) {
                     const itemType = event.target.dataset.type;
                     if (itemType === 'log') {
                         event.target.closest('.maintenance-log-item').remove();
                     } else if (itemType === 'equipment') {
-                        event.target.closest('.new-log-equipment-item, .log-equipment-item').remove();
+                        event.target.closest('.new-log-equipment-item').remove();
                     } else if (itemType === 'payment') {
                         event.target.closest('.new-payment-item').remove();
                     }
                 }
             });
 
+            document.addEventListener('change', function(event) {
+                // Handle auto-filling price when a new equipment is selected
+                if (event.target.classList.contains('new-equipment-select')) {
+                    const selectedOption = event.target.options[event.target.selectedIndex];
+                    const priceInput = event.target.closest('.new-log-equipment-item').querySelector(
+                        '.new-equipment-price');
+                    if (selectedOption && priceInput) {
+                        priceInput.value = selectedOption.dataset.price || 0;
+                    }
+                }
+            });
+
+            // Function to initialize Persian Date Pickers on new elements
             function initializeNewPersianDatePickers(parentElement) {
                 parentElement.querySelectorAll('.persian-date-picker, .persian-date-time-picker').forEach(el => {
-                    if (typeof $ !== 'undefined' && $.fn
-                        .persianDatepicker) { // Check if jQuery and plugin are loaded
+                    if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
                         $(el).persianDatepicker({
                             format: el.classList.contains('persian-date-time-picker') ?
                                 'YYYY/MM/DD HH:mm' : 'YYYY/MM/DD',
-                            initialValue: !el.value && el.classList.contains(
-                                'persian-date-time-picker') ? (
-                                typeof currentJalaliDateTimeForJS_Maintenances !== 'undefined' ?
-                                currentJalaliDateTimeForJS_Maintenances : false) : (!el.value ?
-                                (typeof currentJalaliDateForJS_Maintenances !== 'undefined' ?
-                                    currentJalaliDateForJS_Maintenances : false) : false),
+                            initialValue: false, // Don't set initial value for dynamically added pickers unless they have a value
                             timePicker: {
                                 enabled: el.classList.contains('persian-date-time-picker'),
                                 meridiem: {
@@ -883,8 +807,8 @@
                                     enabled: true
                                 }
                             },
-                            observer: true, // Important for dynamically added elements if datepicker itself doesn't re-scan
-                            altField: el, // To update the original input
+                            observer: true,
+                            altField: el,
                             altFormat: el.classList.contains('persian-date-time-picker') ?
                                 'YYYY/MM/DD HH:mm' : 'YYYY/MM/DD',
                         });
@@ -893,7 +817,6 @@
             }
             // Initial call for existing elements on page load
             initializeNewPersianDatePickers(document);
-
         });
     </script>
 @endsection

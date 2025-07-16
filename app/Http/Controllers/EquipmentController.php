@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Equipment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rule; // <-- ADD THIS IMPORT
 
 class EquipmentController extends Controller
 {
@@ -27,7 +27,7 @@ class EquipmentController extends Controller
 
         $sortField = $request->input('sort_field', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
-        $validSortFields = ['name', 'brand', 'price', 'stock_quantity', 'created_at'];
+        $validSortFields = ['name', 'brand', 'price', 'purchase_price', 'stock_quantity', 'unit', 'created_at'];
 
         if (!in_array($sortField, $validSortFields)) {
             $sortField = 'created_at';
@@ -64,9 +64,11 @@ class EquipmentController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255', // <-- MODIFIED: 'unique' rule removed
+            'name' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
-            'stock_quantity' => 'required|integer|min:0',
+            'purchase_price' => 'nullable|numeric|min:0',
+            'stock_quantity' => 'required|numeric|min:0',
+            'unit' => ['required', Rule::in(['-', 'عدد', 'متر', 'کلاف'])], // <-- ADDED validation
             'brand' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
@@ -100,9 +102,11 @@ class EquipmentController extends Controller
     public function update(Request $request, Equipment $equipment)
     {
         $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255'], // <-- MODIFIED: 'unique' rule removed
+            'name' => ['required', 'string', 'max:255'],
             'price' => 'required|numeric|min:0',
-            'stock_quantity' => 'required|integer|min:0',
+            'purchase_price' => 'nullable|numeric|min:0',
+            'stock_quantity' => 'required|numeric|min:0',
+            'unit' => ['required', Rule::in(['-', 'عدد', 'متر', 'کلاف'])], // <-- ADDED validation
             'brand' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
@@ -123,13 +127,6 @@ class EquipmentController extends Controller
      */
     public function destroy(Equipment $equipment)
     {
-        // Add logic here to check if the equipment is used in any contracts, repairs, etc.
-        // before deleting, if you want to prevent deletion of used equipment.
-        // For example:
-        // if ($equipment->contracts()->exists() || $equipment->repairs()->exists()) {
-        //     return back()->withErrors(['general' => 'این تجهیز در قراردادها یا تعمیرات استفاده شده و قابل حذف نیست.']);
-        // }
-
         $equipment->delete();
         return redirect()->route('equipments.index')->with('success', 'تجهیزات با موفقیت حذف شد.');
     }

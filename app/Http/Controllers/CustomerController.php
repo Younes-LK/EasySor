@@ -113,6 +113,14 @@ class CustomerController extends Controller
         return redirect()->route('customers.index')->with('success', 'مشتری با موفقیت حذف شد.');
     }
 
+    public function search(Request $request)
+    {
+        $query = $request->get('query');
+        $customers = Customer::where('name', 'like', "%{$query}%")
+                             ->orWhere('phone', 'like', "%{$query}%")
+                             ->with('addresses')
+                             ->get();
 
-
+        return response()->json($customers);
+    }
 }

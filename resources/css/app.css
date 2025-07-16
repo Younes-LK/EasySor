@@ -6,6 +6,9 @@
 /* English font from Google Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Figtree&display=swap");
 
+/* Import Persian Datepicker CSS */
+@import "node_modules/persian-datepicker/dist/css/persian-datepicker.min.css";
+
 /* Self-hosted Vazirmatn for Persian */
 @font-face {
     font-family: "Vazirmatn";

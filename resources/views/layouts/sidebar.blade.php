@@ -24,13 +24,14 @@
                 <img src="{{ asset('assets/images/icons/equipments.ico') }}" alt="Icon" class="w-5 h-5">
                 تجهیزات
             </a>
+            <a href="{{ route('customers.index') }}"
+                class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('customers.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
+                <img src="{{ asset('assets/images/icons/customers.ico') }}" alt="Icon" class="w-5 h-5">
+                مشتریان
+            </a>
         @endif
 
-        <a href="{{ route('customers.index') }}"
-            class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('customers.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
-            <img src="{{ asset('assets/images/icons/customers.ico') }}" alt="Icon" class="w-5 h-5">
-            مشتریان
-        </a>
+
         <a href="{{ route('maintenances.index') }}"
             class="flex items-center gap-2 font-semibold rounded-md px-3 py-2 text-gray-800 dark:text-white hover:bg-indigo-100 dark:hover:bg-indigo-900 {{ Route::is('maintenances.*') ? 'bg-gray-400 dark:bg-gray-950' : '' }}">
             <img src="{{ asset('assets/images/icons/services.ico') }}" alt="Icon" class="w-5 h-5">

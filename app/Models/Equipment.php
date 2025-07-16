@@ -11,8 +11,10 @@ class Equipment extends Model
     protected $fillable = [
         'name',
         'price',
+        'purchase_price',
         'stock_quantity',
-         'brand',
+        'unit',
+        'brand',
         'description',
     ];
 }

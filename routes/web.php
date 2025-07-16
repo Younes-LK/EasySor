@@ -37,9 +37,9 @@ Route::middleware([IsAdmin::class])->group(function () {
 
     Route::resource('contracts', ContractController::class);
 
+    Route::resource('customers', CustomerController::class);
 
     Route::resource('equipments', EquipmentController::class);
-
 });
 
 Route::middleware('auth')->group(function () {
@@ -47,9 +47,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
-
-
-    Route::resource('customers', CustomerController::class);
 
     Route::resource('maintenances', MaintenanceController::class);
 

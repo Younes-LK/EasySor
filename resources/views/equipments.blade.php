@@ -27,18 +27,18 @@
         <!-- Add/Edit Form -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6">
             <h3 class="text-lg font-semibold mb-4 dark:text-white border-b pb-2 dark:border-gray-700">
-                {{ $editMode ? 'ویرایش تجهیزات' : 'افزودن تجهیزات جدید' }}
+                {{ $editMode ?? false ? 'ویرایش تجهیزات' : 'افزودن تجهیزات جدید' }}
             </h3>
             <form method="POST"
-                action="{{ $editMode ? route('equipments.update', $equipment->id) : route('equipments.store') }}">
+                action="{{ $editMode ?? false ? route('equipments.update', $equipment->id) : route('equipments.store') }}">
                 @csrf
-                @if ($editMode)
+                @if ($editMode ?? false)
                     @method('PUT')
                 @endif
 
-                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
                     <!-- Name -->
-                    <div>
+                    <div class="lg:col-span-2">
                         <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">نام
                             تجهیزات</label>
                         <input type="text" id="name" name="name"
@@ -55,17 +55,43 @@
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
 
+                    <!-- Purchase Price -->
+                    <div>
+                        <label for="purchase_price" class="block text-sm font-medium text-gray-700 dark:text-gray-200">قیمت
+                            خرید (تومان)</label>
+                        <input type="number" id="purchase_price" name="purchase_price"
+                            value="{{ old('purchase_price', $equipment->purchase_price ?? '') }}" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+
                     <!-- Price -->
                     <div>
-                        <label for="price" class="block text-sm font-medium text-gray-700 dark:text-gray-200">قیمت
+                        <label for="price" class="block text-sm font-medium text-gray-700 dark:text-gray-200">قیمت فروش
                             (تومان)</label>
                         <input type="number" id="price" name="price"
                             value="{{ old('price', $equipment->price ?? '') }}" required min="0"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
 
-                    <!-- Stock Quantity -->
+
+                    <!-- Unit -->
                     <div>
+                        <label for="unit" class="block text-sm font-medium text-gray-700 dark:text-gray-200">واحد
+                        </label>
+                        <select id="unit" name="unit" required
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            @php $units = ['-', 'عدد', 'متر', 'کلاف']; @endphp
+                            @foreach ($units as $unit)
+                                <option value="{{ $unit }}"
+                                    {{ old('unit', $equipment->unit ?? '-') == $unit ? 'selected' : '' }}>
+                                    {{ $unit }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Stock Quantity -->
+                    <div class="lg:col-span-1">
                         <label for="stock_quantity" class="block text-sm font-medium text-gray-700 dark:text-gray-200">تعداد
                             در انبار</label>
                         <input type="number" id="stock_quantity" name="stock_quantity"
@@ -74,16 +100,16 @@
                     </div>
 
                     <!-- Description -->
-                    <div class="md:col-span-2 lg:col-span-4">
+                    <div class="md:col-span-2 lg:col-span-5">
                         <label for="description"
                             class="block text-sm font-medium text-gray-700 dark:text-gray-200">توضیحات</label>
-                        <textarea id="description" name="description" rows="3"
+                        <textarea id="description" name="description" rows="2"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('description', $equipment->description ?? '') }}</textarea>
                     </div>
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    @if ($editMode)
+                    @if ($editMode ?? false)
                         <a href="{{ route('equipments.index') }}"
                             class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
                             لغو
@@ -91,7 +117,7 @@
                     @endif
                     <button type="submit"
                         class="ms-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        {{ $editMode ? 'بروزرسانی' : 'ذخیره' }}
+                        {{ $editMode ?? false ? 'بروزرسانی' : 'ذخیره' }}
                     </button>
                 </div>
             </form>
@@ -124,8 +150,10 @@
                         <th class="p-3">نام تجهیزات</th>
                         <th class="p-3">برند</th>
                         <th class="p-3">توضیحات</th>
-                        <th class="p-3">قیمت</th>
+                        <th class="p-3">قیمت خرید</th>
+                        <th class="p-3">قیمت فروش</th>
                         <th class="p-3">موجودی انبار</th>
+                        <th class="p-3">واحد</th>
                         <th class="p-3">عملیات</th>
                     </tr>
                 </thead>
@@ -136,13 +164,16 @@
                             <td class="p-3">{{ $item->brand ?? '-' }}</td>
                             <td class="p-3 text-gray-600 dark:text-gray-400">
                                 {{ \Illuminate\Support\Str::limit($item->description, 50, '...') }}</td>
+                            <td class="p-3">{{ number_format($item->purchase_price) }} تومان</td>
                             <td class="p-3">{{ number_format($item->price) }} تومان</td>
                             <td class="p-3">{{ $item->stock_quantity }}</td>
+                            <td class="p-3">{{ $item->unit }}</td>
                             <td class="p-3 whitespace-nowrap">
                                 <a href="{{ route('equipments.edit', $item->id) }}"
                                     class="text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 px-2">ویرایش</a>
                                 <form action="{{ route('equipments.destroy', $item->id) }}" method="POST"
-                                    class="inline-block" onsubmit="return confirm('آیا از حذف این تجهیزات مطمئن هستید؟');">
+                                    class="inline-block"
+                                    onsubmit="return confirm('آیا از حذف این تجهیزات مطمئن هستید؟');">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit"
@@ -152,7 +183,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="p-4 text-center text-gray-500 dark:text-gray-400">
+                            <td colspan="7" class="p-4 text-center text-gray-500 dark:text-gray-400">
                                 تجهیزاتی یافت نشد.
                             </td>
                         </tr>
