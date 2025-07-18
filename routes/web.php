@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\MaintenanceController;
@@ -36,6 +37,8 @@ Route::middleware([IsAdmin::class])->group(function () {
     Route::get('contracts/{contract}/print', [ContractController::class, 'print'])->name('contracts.print');
 
     Route::resource('contracts', ContractController::class);
+
+    Route::resource('invoices', InvoiceController::class);
 
     Route::resource('customers', CustomerController::class);
 

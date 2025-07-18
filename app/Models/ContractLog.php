@@ -10,6 +10,11 @@ use Carbon\Carbon;
 class ContractLog extends Model
 {
     /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    /**
      * The table associated with the model.
      */
     protected $table = 'contract_logs';

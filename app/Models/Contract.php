@@ -57,6 +57,11 @@ class Contract extends Model
         return $this->hasMany(ContractPayment::class);
     }
 
+    public function checks(): HasMany
+    {
+        return $this->hasMany(ContractCheck::class);
+    }
+
     public function logs(): HasMany // <-- ADDED THIS RELATIONSHIP
     {
         return $this->hasMany(ContractLog::class);

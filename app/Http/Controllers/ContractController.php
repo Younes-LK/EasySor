@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contract;
+use App\Models\ContractCheck;
 use App\Models\ContractLog;
 use App\Models\Customer;
 use App\Models\User;
@@ -105,6 +106,13 @@ class ContractController extends Controller
             'new_payments.*.amount' => 'nullable|required_with:new_payments.*.title|numeric|min:0',
             'new_payments.*.paid_at' => 'nullable|required_with:new_payments.*.title|string',
             'new_payments.*.note' => 'nullable|string',
+            'new_checks.*.date' => 'required|string',
+            'new_checks.*.bank_name' => 'required|string|max:255',
+            'new_checks.*.serial_number' => 'required|string|max:255',
+            'new_checks.*.sayadi_number' => 'required|string|size:16',
+            'new_checks.*.in_name_of' => 'required|string|max:255',
+            'new_checks.*.amount' => 'required|numeric|min:0',
+            'new_checks.*.status' => 'required|in:draft,cashed,bounced,referred',
             // CORRECTED: Validation for new logs
             'new_logs.*.performed_by' => 'nullable|exists:users,id',
             'new_logs.*.performed_at' => 'nullable|string',
@@ -142,6 +150,21 @@ class ContractController extends Controller
                 }
             }
 
+            //Checks Added
+            if ($request->has('new_checks')) {
+                foreach ($request->input('new_checks', []) as $checkData) {
+                    $contract->checks()->create([
+                        'date' => Jalalian::fromFormat('Y/m/d', $checkData['date'])->toCarbon(),
+                        'bank_name' => $checkData['bank_name'],
+                        'serial_number' => $checkData['serial_number'],
+                        'sayadi_number' => $checkData['sayadi_number'],
+                        'in_name_of' => $checkData['in_name_of'],
+                        'amount' => $checkData['amount'],
+                        'status' => $checkData['status'],
+                    ]);
+                }
+            }
+
             // CORRECTED: Handle New Logs
             if ($request->has('new_logs')) {
                 foreach ($request->input('new_logs', []) as $logData) {
@@ -167,7 +190,7 @@ class ContractController extends Controller
 
     public function edit(Contract $contract)
     {
-        $contract->load(['customer.addresses', 'assignedUser', 'equipments.equipment', 'payments', 'logs.user']);
+        $contract->load(['customer.addresses', 'assignedUser', 'equipments.equipment', 'payments', 'checks', 'logs.user']);
 
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $users = User::whereIn('role', ['admin', 'staff'])->orderBy('name')->get(['id', 'name']);
@@ -220,6 +243,25 @@ class ContractController extends Controller
             'new_payments.*.amount' => 'nullable|required_with:new_payments.*.title|numeric|min:0',
             'new_payments.*.paid_at' => 'nullable|required_with:new_payments.*.title|string',
             'new_payments.*.note' => 'nullable|string',
+            //Checks Added
+             'checks.*.id' => 'required|exists:contract_checks,id,contract_id,'.$contract->id,
+            'checks.*.date' => 'required|string',
+            'checks.*.bank_name' => 'required|string|max:255',
+            'checks.*.serial_number' => 'required|string|max:255',
+            'checks.*.sayadi_number' => 'required|string|size:16',
+            'checks.*.in_name_of' => 'required|string|max:255',
+            'checks.*.amount' => 'required|numeric|min:0',
+            'checks.*.status' => 'required|in:draft,cashed,bounced,referred',
+            'checks.*._remove' => 'nullable|boolean',
+
+            'new_checks.*.date' => 'required|string',
+            'new_checks.*.bank_name' => 'required|string|max:255',
+            'new_checks.*.serial_number' => 'required|string|max:255',
+            'new_checks.*.sayadi_number' => 'required|string|size:16',
+            'new_checks.*.in_name_of' => 'required|string|max:255',
+            'new_checks.*.amount' => 'required|numeric|min:0',
+            'new_checks.*.status' => 'required|in:draft,cashed,bounced,referred',
+
             // CORRECTED: Validation for logs
             'logs.*.id' => 'required_with:logs.*.description|exists:contract_logs,id,contract_id,'.$contract->id,
             'logs.*.performed_by' => 'required_with:logs.*.description|exists:users,id',
@@ -301,6 +343,43 @@ class ContractController extends Controller
                 }
             }
 
+            //Checks Addded
+            if ($request->has('checks')) {
+                foreach ($request->input('checks') as $checkData) {
+                    $contractCheck = ContractCheck::find($checkData['id']);
+                    if ($contractCheck) {
+                        if (isset($checkData['_remove'])) {
+                            $contractCheck->delete();
+                        } else {
+                            $contractCheck->update([
+                                'date' => Jalalian::fromFormat('Y/m/d', $checkData['date'])->toCarbon(),
+                                'bank_name' => $checkData['bank_name'],
+                                'serial_number' => $checkData['serial_number'],
+                                'sayadi_number' => $checkData['sayadi_number'],
+                                'in_name_of' => $checkData['in_name_of'],
+                                'amount' => $checkData['amount'],
+                                'status' => $checkData['status'],
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // ADD LOGIC TO SAVE NEW CHECKS
+            if ($request->has('new_checks')) {
+                foreach ($request->input('new_checks', []) as $checkData) {
+                    $contract->checks()->create([
+                        'date' => Jalalian::fromFormat('Y/m/d', $checkData['date'])->toCarbon(),
+                        'bank_name' => $checkData['bank_name'],
+                        'serial_number' => $checkData['serial_number'],
+                        'sayadi_number' => $checkData['sayadi_number'],
+                        'in_name_of' => $checkData['in_name_of'],
+                        'amount' => $checkData['amount'],
+                        'status' => $checkData['status'],
+                    ]);
+                }
+            }
+
             // CORRECTED: Handle Existing Logs
             if ($request->has('logs')) {
                 foreach ($request->input('logs') as $logData) {
@@ -350,7 +429,7 @@ class ContractController extends Controller
     {
         DB::beginTransaction();
         try {
-            $contract->load('equipments', 'payments', 'logs');
+            $contract->load('equipments', 'payments', 'checks', 'logs');
             foreach ($contract->equipments as $contractEquipment) {
                 $equipment = Equipment::find($contractEquipment->equipment_id);
                 if ($equipment) {
@@ -359,6 +438,7 @@ class ContractController extends Controller
             }
             $contract->equipments()->delete();
             $contract->payments()->delete();
+            $contract->checks()->delete();
             $contract->logs()->delete();
             $contract->delete();
             DB::commit();
